@@ -1,0 +1,211 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Syntesis Design System
+   Agency: Light theme (#DAD8D8 bg, #030903 text)
+   Events: Dark theme (#030903 bg, #DAD8D8 text)
+   No accent color - strictly black and white
+*/
+
+@layer base {
+  :root {
+    /* Brand Colors - HSL */
+    --syntesis-white: 0 0% 85.5%;
+    --syntesis-black: 120 50% 2.4%;
+
+    /* Agency Theme (Light) - Default */
+    --background: 0 0% 85.5%;
+    --foreground: 120 50% 2.4%;
+
+    --card: 0 0% 82%;
+    --card-foreground: 120 50% 2.4%;
+
+    --popover: 0 0% 85.5%;
+    --popover-foreground: 120 50% 2.4%;
+
+    --primary: 120 50% 2.4%;
+    --primary-foreground: 0 0% 85.5%;
+
+    --secondary: 0 0% 75%;
+    --secondary-foreground: 120 50% 2.4%;
+
+    --muted: 0 0% 70%;
+    --muted-foreground: 120 30% 20%;
+
+    --accent: 120 50% 2.4%;
+    --accent-foreground: 0 0% 85.5%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 120 20% 25%;
+    --input: 0 0% 75%;
+    --ring: 120 50% 2.4%;
+
+    --radius: 0px;
+
+    /* Typography Scale */
+    --font-display: 'Aktiv Grotesk', 'DM Sans', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  .dark,
+  .events-theme {
+    /* Events Theme (Dark) - #030903 bg, #DAD8D8 text */
+    --background: 120 50% 2.4%;
+    --foreground: 0 0% 85.5%;
+
+    --card: 120 40% 5%;
+    --card-foreground: 0 0% 85.5%;
+
+    --popover: 120 50% 2.4%;
+    --popover-foreground: 0 0% 85.5%;
+
+    --primary: 0 0% 85.5%;
+    --primary-foreground: 120 50% 2.4%;
+
+    --secondary: 120 30% 10%;
+    --secondary-foreground: 0 0% 85.5%;
+
+    --muted: 120 20% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 0 0% 85.5%;
+    --accent-foreground: 120 50% 2.4%;
+
+    --border: 0 0% 30%;
+    --input: 120 20% 15%;
+    --ring: 0 0% 85.5%;
+  }
+
+  .agency-theme {
+    /* Agency Theme (Light) - #DAD8D8 bg, #030903 text */
+    --background: 0 0% 85.5%;
+    --foreground: 120 50% 2.4%;
+
+    --card: 0 0% 82%;
+    --card-foreground: 120 50% 2.4%;
+
+    --popover: 0 0% 85.5%;
+    --popover-foreground: 120 50% 2.4%;
+
+    --primary: 120 50% 2.4%;
+    --primary-foreground: 0 0% 85.5%;
+
+    --secondary: 0 0% 75%;
+    --secondary-foreground: 120 50% 2.4%;
+
+    --muted: 0 0% 70%;
+    --muted-foreground: 120 30% 20%;
+
+    --accent: 120 50% 2.4%;
+    --accent-foreground: 0 0% 85.5%;
+
+    --border: 120 20% 25%;
+    --input: 0 0% 75%;
+    --ring: 120 50% 2.4%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .text-gradient {
+    @apply bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1;
+  }
+
+  .link-underline {
+    @apply relative after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-0 after:bg-foreground after:transition-all after:duration-300 hover:after:w-full;
+  }
+
+  .split-section {
+    @apply relative flex items-center justify-center transition-all duration-500;
+  }
+
+  .split-section:hover {
+    @apply flex-[1.2];
+  }
+
+  .artist-card {
+    @apply relative overflow-hidden cursor-pointer;
+  }
+
+  .artist-card img {
+    @apply transition-all duration-500 grayscale;
+  }
+
+  .artist-card:hover img {
+    @apply grayscale-0 scale-105;
+  }
+
+  .artist-card-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-0 transition-opacity duration-300;
+  }
+
+  .artist-card:hover .artist-card-overlay {
+    @apply opacity-100;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.6s ease-out forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+}
