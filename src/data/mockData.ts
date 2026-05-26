@@ -1,5 +1,7 @@
 import flyerVol4 from "@/assets/flyer-vol4.webp";
 import flyerVol5 from "@/assets/flyer-vol5.webp";
+import flyerVol7 from "@/assets/vol8.jpg";
+import flyerVol8 from "@/assets/vol7.jpg";
 import flyerVol6 from "@/assets/flyer-vol6.webp";
 import bondarukSmtImg from "@/assets/artists/bondaruk-smt.webp";
 import pakardImg from "@/assets/artists/pakard.webp";
@@ -18,13 +20,7 @@ export interface Artist {
   location: string;
   nationality: string;
   representation: string;
-  socials: {
-    soundcloud?: string;
-    instagram?: string;
-    ra?: string;
-    bandcamp?: string;
-    spotify?: string;
-  };
+  socials: { name: string; url: string }[];
 }
 
 export interface Event {
@@ -32,6 +28,7 @@ export interface Event {
   name: string;
   slug: string;
   date: string;
+  time: string;
   venue: string;
   city: string;
   flyer: string;
@@ -68,12 +65,12 @@ export const artists: Artist[] = [
     location: "Buenos Aires, Argentina",
     nationality: "Argentina",
     representation: "Worldwide",
-    socials: {
-      soundcloud: "https://soundcloud.com/ma-bondar-k",
-      instagram: "https://www.instagram.com/bondarukkkk/",
-      bandcamp: "https://roomarg.bandcamp.com/",
-      spotify: "https://open.spotify.com/intl-es/artist/0PekByCcyLIrgwHwHM21sE",
-    },
+    socials: [
+      {name:"SOUNDCLOUD", url: "https://soundcloud.com/ma-bondar-k"},
+      {name:"INSTAGRAM", url: "https://www.instagram.com/bondarukkkk/"},
+      {name:"BANDCAMP", url: "https://roomarg.bandcamp.com/"},
+       {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/0PekByCcyLIrgwHwHM21sE"},
+    ],
   },
   {
     id: "2",
@@ -87,13 +84,13 @@ export const artists: Artist[] = [
     location: "Santa Fé, Argentina",
     nationality: "Argentina",
     representation: "Worldwide",
-    socials: {
-      soundcloud: "https://soundcloud.com/pakard_ar",
-      instagram: "https://www.instagram.com/pakard.ar/",
-      ra: "https://es.ra.co/dj/pakard",
-      bandcamp: "https://maisoncloserecords.bandcamp.com/",
-      spotify: "https://open.spotify.com/intl-es/artist/2uGm2g4peXlYlx77uhWZNb",
-    },
+    socials: [
+      {name:"SOUNDCLOUD", url: "https://soundcloud.com/pakard_ar"},
+      {name:"INSTAGRAM", url: "https://www.instagram.com/pakard.ar/"},
+      {name:"RESIDENT ADVISOR", url: "https://es.ra.co/dj/pakard"},
+       {name:"BANDCAMP", url: "https://maisoncloserecords.bandcamp.com/"},
+       {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/2uGm2g4peXlYlx77uhWZNb"},
+    ],
   },
   {
     id: "3",
@@ -107,13 +104,13 @@ export const artists: Artist[] = [
     location: "Buenos Aires, Argentina",
     nationality: "Argentina",
     representation: "Worldwide",
-    socials: {
-      soundcloud: "https://soundcloud.com/franco_pepe",
-      instagram: "https://www.instagram.com/francolorenzo___/",
-      ra: "https://es.ra.co/dj/francolorenzo",
-      bandcamp: "https://francolorenzo.bandcamp.com/",
-      spotify: "https://open.spotify.com/intl-es/artist/0k4tcLFPJie9ErMR6TqTRj",
-    },
+    socials: [
+      {name:"SOUNDCLOUD", url: "https://soundcloud.com/franco_pepe"},
+      {name:"INSTAGRAM", url: "https://www.instagram.com/francolorenzo___/"},
+      {name:"RESIDENT ADVISOR", url: "https://es.ra.co/dj/francolorenzo"},
+       {name:"BANDCAMP", url: "https://francolorenzo.bandcamp.com/"},
+       {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/0k4tcLFPJie9ErMR6TqTRj"},
+    ],
   },
   {
     id: "4",
@@ -127,13 +124,13 @@ export const artists: Artist[] = [
     location: "Buenos Aires, Argentina",
     nationality: "Argentina",
     representation: "Worldwide",
-    socials: {
-      soundcloud: "https://soundcloud.com/floriandelolmo",
-      instagram: "https://www.instagram.com/delolmo.wav/",
-      ra: "https://es.ra.co/dj/delolmo-2",
-      bandcamp: "https://bandcamp.com/floriandelolmo",
-      spotify: "https://open.spotify.com/intl-es/artist/3Djmtpydr6PgWbsyB6Ch1o",
-    },
+    socials: [
+      {name:"SOUNDCLOUD", url: "https://soundcloud.com/floriandelolmo"},
+      {name:"INSTAGRAM", url: "https://www.instagram.com/delolmo.wav/"},
+      {name:"RESIDENT ADVISOR", url: "https://es.ra.co/dj/delolmo-2"},
+       {name:"BANDCAMP", url: "https://bandcamp.com/floriandelolmo"},
+       {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/3Djmtpydr6PgWbsyB6Ch1o"},
+    ],
   },
   {
     id: "5",
@@ -147,10 +144,11 @@ export const artists: Artist[] = [
     location: "Santiago de Chile, Chile",
     nationality: "Chile",
     representation: "LATAM",
-    socials: {
-      instagram: "https://www.instagram.com/frvnccscv/",
-      bandcamp: "https://frvnccscv.bandcamp.com/",
-    },
+    socials: [
+   
+      {name:"INSTAGRAM", url: "https://www.instagram.com/frvnccscv/"},
+       {name:"BANDCAMP", url: "https://frvnccscv.bandcamp.com/"},
+    ],
   },
 ];
 
@@ -160,9 +158,10 @@ export const events: Event[] = [
     name: "SYNTESIS 008",
     slug: "syntesis-008",
     date: "2026-05-24",
+    time: "23:59",
     venue: "Club de Pescadores",
     city: "Ciudad de Buenos Aires",
-    flyer: "",
+    flyer: flyerVol8,
     description: "La octava edición de Syntesis.",
     lineup: ["Hyvrid", "FRVNCCSCV", "Franck"],
     ticketLinks: [
@@ -176,9 +175,10 @@ export const events: Event[] = [
     name: "SYNTESIS 007",
     slug: "syntesis-007",
     date: "2026-03-21",
+    time: "23:59",
     venue: "Club de Pescadores",
     city: "Ciudad de Buenos Aires",
-    flyer: "",
+    flyer: flyerVol7,
     description: "Séptima edición de Syntesis con Gastón Fiore & Yenkov desde Francia y TINKERHELL.",
     lineup: ["FRANCO LORENZO", "GASTÓN FIORE & YENKOV", "TINKERHELL"],
     setTimes: [
@@ -194,6 +194,7 @@ export const events: Event[] = [
     name: "SYNTESIS 006 / ROOM SHOWCASE",
     slug: "syntesis-006",
     date: "2025-12-05",
+    time: "23:59",
     venue: "Roxy",
     city: "Ciudad de Buenos Aires",
     flyer: flyerVol6,
@@ -212,6 +213,7 @@ export const events: Event[] = [
     name: "SYNTESIS 005 / ANIVERSARY",
     slug: "syntesis-005",
     date: "2025-10-11",
+    time: "23:59",
     venue: "The Sub",
     city: "Ciudad de Buenos Aires",
     flyer: flyerVol5,
@@ -231,6 +233,7 @@ export const events: Event[] = [
     name: "SYNTESIS 004",
     slug: "syntesis-004",
     date: "2025-06-21",
+    time: "23:59",
     venue: "Teatro Unione e Benevolenza",
     city: "Ciudad de Buenos Aires",
     flyer: flyerVol4,
@@ -250,6 +253,7 @@ export const events: Event[] = [
     name: "SYNTESIS 003 / F2F",
     slug: "syntesis-003",
     date: "2025-03-23",
+    time: "23:59",
     venue: "The Sub",
     city: "Ciudad de Buenos Aires",
     flyer: "",
@@ -267,6 +271,7 @@ export const events: Event[] = [
     name: "SYNTESIS 002",
     slug: "syntesis-002",
     date: "2024-12-21",
+    time: "23:59",
     venue: "Bastarda",
     city: "Ciudad de Buenos Aires",
     flyer: "",
@@ -284,7 +289,8 @@ export const events: Event[] = [
     name: "SYNTESIS 001",
     slug: "syntesis-001",
     date: "2024-09-28",
-    venue: "Teatro Unione e Benevolenza",
+    time: "23:59",
+    venue: "Teatro Union Española e Benevolenza",
     city: "Ciudad de Buenos Aires",
     flyer: "",
     description: "La primera edición de Syntesis. El inicio de todo.",

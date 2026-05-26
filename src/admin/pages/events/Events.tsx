@@ -29,7 +29,7 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
   });
 }
 
-const EMPTY: Event = { id:"", name:"", slug:"", date:"", venue:"", city:"", flyer:"", description:"", lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:"" };
+const EMPTY: Event = { id:"", name:"", slug:"", date:"", time:"", venue:"", city:"", flyer:"", description:"", lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:"" };
 
 export default function Events() {
   const { can, currentUser, getStorage, setStorage, logAction, theme } = useAdmin();
@@ -126,18 +126,26 @@ export default function Events() {
           <div style={{backgroundColor:t.bgModal,border:`1px solid ${t.border}`,padding:"2rem",width:"100%",maxWidth:640,marginBottom:"2rem"}}>
             <h2 style={{fontSize:12,fontWeight:700,letterSpacing:"0.15em",color:t.text,marginBottom:"1.75rem"}}>{modal==="create"?"NUEVO EVENTO":`EDITAR — ${selected?.name}`}</h2>
             <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
-              <div><label style={lbl}>Nombre del evento *</label><input style={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ej: SYNTESIS 009"/></div>
+              <div><label style={lbl}>Nombre del evento *</label><input style={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ej: SYNTESIS 00x"/></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
                 <div><label style={lbl}>Fecha *</label><input type="date" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
-                <div><label style={lbl}>Venue</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
+                <div><label style={lbl}>Hora *</label><input type="time" style={inp} value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))}/></div>
+                
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
                 <div><label style={lbl}>Ciudad</label><input style={inp} value={form.city} onChange={e=>setForm(f=>({...f,city:e.target.value}))} placeholder="Ej: Buenos Aires"/></div>
-                <div><label style={lbl}>Descripción</label><input style={inp} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div>
+                <div><label style={lbl}>Venue</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
               </div>
+              <div><label style={lbl}>Descripción</label><input style={inp} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div>
               <div><label style={lbl}>Lineup (un artista por línea)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={lineupText} onChange={e=>setLineupText(e.target.value)} placeholder={"PAKARD\nBONDARÜK & SMT"}/></div>
               <div><label style={lbl}>Set Times (Artista|HH:MM - HH:MM — una línea por artista)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={setTimesText} onChange={e=>setSetTimesText(e.target.value)} placeholder={"PAKARD|00:00 - 02:00\nBONDARÜK & SMT|02:00 - 04:00"}/></div>
-              <div><label style={lbl}>Links de tickets (Nombre|URL — una línea por link)</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.7}} value={ticketsText} onChange={e=>setTicketsText(e.target.value)} placeholder={"Bombo|https://...\nResident Advisor|https://..."}/></div>
+              {/* <div><label style={lbl}>Links de tickets (Nombre|URL — una línea por link)</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.7}} value={ticketsText} onChange={e=>setTicketsText(e.target.value)} placeholder={"Bombo|https://...\nResident Advisor|https://..."}/></div> */}
+              <label style={lbl}>LINKS DE TICKETS</label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+                <div><label style={lbl}>texto</label><input type="text" style={inp} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
+                <div><label style={lbl}>enlace</label><input type="link" style={inp} onChange={e=>setForm(f=>({...f,time:e.target.value}))}/></div>
+                
+              </div>
               <div><label style={lbl}>Recorded Sets (URL Soundcloud)</label><input style={inp} value={form.recordedSets??""} onChange={e=>setForm(f=>({...f,recordedSets:e.target.value}))} placeholder="https://soundcloud.com/..."/></div>
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Flyer del evento</label>
@@ -172,6 +180,7 @@ export default function Events() {
 }
 
 function EventRow({event,canEdit,onEdit,onDelete,t}: {event:Event; canEdit:boolean; onEdit:(e:Event)=>void; onDelete:(e:Event)=>void; t:any}) {
+  console.log(event[0]);
   return (
     <div style={{backgroundColor:t.bgCard,border:`1px solid ${t.border}`,padding:"1.25rem 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.5rem"}}>
       <div style={{display:"flex",alignItems:"center",gap:"1rem"}}>
@@ -182,7 +191,7 @@ function EventRow({event,canEdit,onEdit,onDelete,t}: {event:Event; canEdit:boole
         <div>
           <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{event.name}</div>
           <div style={{fontSize:11,color:t.textMuted}}>
-            {new Date(event.date).toLocaleDateString("es-AR",{year:"numeric",month:"long",day:"numeric"})}
+            {new Date(event.date).toLocaleDateString("es-AR",{year:"numeric",month:"long",day:"numeric"})}{event.time&&` · ${event.time}`}
             {event.venue&&` · ${event.venue}`}{event.city&&`, ${event.city}`}
           </div>
           <div style={{fontSize:10,color:t.textFaint,marginTop:2}}>{event.lineup.join(" / ")}</div>

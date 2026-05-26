@@ -132,7 +132,7 @@ const ArtistDetail = () => {
               </div>
               
               {/* Social Links */}
-              <div className="mb-8 pb-8 border-b border-border/50">
+              {/* <div className="mb-8 pb-8 border-b border-border/50">
                 <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-3">
                   Links
                 </span>
@@ -188,7 +188,27 @@ const ArtistDetail = () => {
                     </a>
                   )}
                 </div>
-              </div>
+              </div> */}
+{artist.socials.length > 0 && (
+  <div className="mb-8 pb-8 border-b border-border/50">
+    <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-3">
+      Links
+    </span>
+    <div className="flex flex-wrap gap-4">
+      {artist.socials.map(link => (
+        
+          <a key={link.name}
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm uppercase tracking-widest hover:text-primary transition-colors link-underline"
+        >
+          {link.name}
+        </a>
+      ))}
+    </div>
+  </div>
+)}
               
               {/* Booking Form */}
               <div className="bg-card border border-border/50 p-8">

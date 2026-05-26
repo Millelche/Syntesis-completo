@@ -32,7 +32,7 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
   });
 }
 
-const EMPTY: Artist = { id:"", name:"", slug:"", image:"", bio:"", genre:"", performances:[], labels:[], location:"", nationality:"", representation:"", socials:{} };
+const EMPTY: Artist = { id:"", name:"", slug:"", image:"", bio:"", genre:"", performances:[], labels:[], location:"", nationality:"", representation:"", socials:[] };
 
 export default function Artists() {
   const { can, currentUser, getStorage, setStorage, logAction, theme } = useAdmin();
@@ -56,7 +56,17 @@ export default function Artists() {
 
   function persist(updated: Artist[]) { setArtists(updated); setStorage("artists", updated); }
   function openCreate() { setForm({...EMPTY}); setDone(false); setModal("create"); }
-  function openEdit(a: Artist) { setSelected(a); setForm({...a, performances:[...a.performances], labels:[...a.labels], socials:{...a.socials}}); setDone(false); setModal("edit"); }
+ function openEdit(a: Artist) {
+  setSelected(a);
+  setForm({
+    ...a,
+    performances: [...a.performances],
+    labels: [...a.labels],
+    socials: Array.isArray(a.socials) ? [...a.socials] : []
+  });
+  setDone(false);
+  setModal("edit");
+}
   function openDelete(a: Artist) { setSelected(a); setModal("delete"); }
 
   async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -141,11 +151,46 @@ export default function Artists() {
               <div><label style={lbl}>Biografía</label><textarea style={{...inp,minHeight:100,resize:"vertical",lineHeight:1.6}} value={form.bio} onChange={e=>setForm(f=>({...f,bio:e.target.value}))}/></div>
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <div style={{fontSize:9,letterSpacing:"0.18em",color:t.textMuted,marginBottom:"0.75rem",textTransform:"uppercase"}}>Links / Redes Sociales</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
-                  {(["soundcloud","spotify","instagram","ra","bandcamp"] as const).map(s => (
-                    <div key={s}><label style={{...lbl,textTransform:"uppercase"}}>{s}</label><input style={inp} value={form.socials[s]??""} onChange={e=>setForm(f=>({...f,socials:{...f.socials,[s]:e.target.value}}))} placeholder="https://"/></div>
-                  ))}
-                </div>
+               <div>
+  <label style={lbl}>Links (máx. 10)</label>
+  {(form.socials as {name:string;url:string}[]).map((link, i) => (
+    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 2fr auto",gap:"0.5rem",marginBottom:"0.5rem"}}>
+      <input
+        style={inp}
+        value={link.name}
+        onChange={e => {
+          const updated = [...form.socials as {name:string;url:string}[]];
+          updated[i] = {...updated[i], name: e.target.value.toUpperCase()};
+          setForm(f => ({...f, socials: updated}));
+        }}
+        placeholder="FACEBOOK"
+      />
+      <input
+        style={inp}
+        value={link.url}
+        onChange={e => {
+          const updated = [...form.socials as {name:string;url:string}[]];
+          updated[i] = {...updated[i], url: e.target.value};
+          setForm(f => ({...f, socials: updated}));
+        }}
+        placeholder="https://"
+      />
+      <button
+        onClick={() => {
+          const updated = (form.socials as {name:string;url:string}[]).filter((_,j) => j !== i);
+          setForm(f => ({...f, socials: updated}));
+        }}
+        style={{background:"none",border:`1px solid ${t.dangerBorder}`,color:t.danger,padding:"0 10px",cursor:"pointer",fontSize:12}}
+      >✕</button>
+    </div>
+  ))}
+  {(form.socials as {name:string;url:string}[]).length < 10 && (
+    <button
+      onClick={() => setForm(f => ({...f, socials: [...f.socials as {name:string;url:string}[], {name:"",url:""}]}))}
+      style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:t.textMuted,background:"none",border:`1px solid ${t.border}`,padding:"6px 12px",cursor:"pointer",marginTop:4}}
+    >+ Agregar link</button>
+  )}
+</div>
               </div>
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Foto del artista</label>

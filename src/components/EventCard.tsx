@@ -12,7 +12,6 @@ export const EventCard = ({ event, index = 0 }: EventCardProps) => {
     day: "numeric",
     year: "numeric",
   });
-
   return (
     <Link 
       to={`/events/${event.slug}`}
@@ -41,14 +40,14 @@ export const EventCard = ({ event, index = 0 }: EventCardProps) => {
       </div>
       <div className="mt-4">
         <span className="text-xs uppercase tracking-widest text-primary block mb-1">
-          {formattedDate}
+          {formattedDate} {event.time && ` · ${event.time}`}
         </span>
         <h3 className="text-display-sm font-display tracking-tight text-foreground">
           {event.name}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
-          {event.venue}, {event.city}
-        </p>
+  {event.venue}, {event.city}
+</p>
       </div>
     </Link>
   );
