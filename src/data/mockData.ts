@@ -21,6 +21,7 @@ export interface Artist {
   nationality: string;
   representation: string;
   socials: { name: string; url: string }[];
+  order: number;
 }
 
 export interface Event {
@@ -71,6 +72,7 @@ export const artists: Artist[] = [
       {name:"BANDCAMP", url: "https://roomarg.bandcamp.com/"},
        {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/0PekByCcyLIrgwHwHM21sE"},
     ],
+    order: 1,
   },
   {
     id: "2",
@@ -91,6 +93,7 @@ export const artists: Artist[] = [
        {name:"BANDCAMP", url: "https://maisoncloserecords.bandcamp.com/"},
        {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/2uGm2g4peXlYlx77uhWZNb"},
     ],
+    order:2,
   },
   {
     id: "3",
@@ -111,6 +114,7 @@ export const artists: Artist[] = [
        {name:"BANDCAMP", url: "https://francolorenzo.bandcamp.com/"},
        {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/0k4tcLFPJie9ErMR6TqTRj"},
     ],
+    order:3,
   },
   {
     id: "4",
@@ -131,6 +135,7 @@ export const artists: Artist[] = [
        {name:"BANDCAMP", url: "https://bandcamp.com/floriandelolmo"},
        {name:"SPOTIFY", url: "https://open.spotify.com/intl-es/artist/3Djmtpydr6PgWbsyB6Ch1o"},
     ],
+    order:4,
   },
   {
     id: "5",
@@ -149,6 +154,7 @@ export const artists: Artist[] = [
       {name:"INSTAGRAM", url: "https://www.instagram.com/frvnccscv/"},
        {name:"BANDCAMP", url: "https://frvnccscv.bandcamp.com/"},
     ],
+    order:5,
   },
 ];
 

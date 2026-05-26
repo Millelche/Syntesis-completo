@@ -19,7 +19,7 @@ const Agency = () => {
               Representando e impulsando el talento de grandes artistas.
             </p>
             <div className="mt-8 flex gap-4 opacity-0 animate-fade-up stagger-2">
-              <Link 
+              <Link
                 to="/agency/dates"
                 className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-colors"
               >
@@ -27,12 +27,14 @@ const Agency = () => {
               </Link>
             </div>
           </div>
-          
+
           {/* Artist Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
-            {artists.map((artist, index) => (
-              <ArtistCard key={artist.id} artist={artist} index={index} />
-            ))}
+            {[...artists]
+              .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+              .map((artist, index) => (
+                <ArtistCard key={artist.id} artist={artist} index={index} />
+              ))}
           </div>
         </div>
       </section>
