@@ -82,8 +82,10 @@ export default function Events() {
   function handleSave() {
     if (!form.name.trim() || !form.date) return;
     const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    const data: Event = { ...form, slug, lineup: parseLines(lineupText), setTimes: parseSetTimes(setTimesText),ticketLinks: tickets.filter(t => t.name || t.url) , isPast: new Date(form.date) < new Date() };
-    if (modal === "create") { persist([data, ...events]); logAction(`Creó evento "${form.name}"`, "eventos"); }
+    const data: Event = { ...form, slug, lineup: parseLines(lineupText), setTimes: parseSetTimes(setTimesText), ticketLinks: tickets.filter(t => t.name || t.url), isPast: new Date(form.date) < new Date() };
+    if (modal === "create") {
+      persist([{ ...data, id: Date.now().toString() }, ...events]); logAction(`Creó evento "${form.name}"`, "eventos");
+    }
     else if (modal === "edit" && selected) { persist(events.map(e => e.id === selected.id ? { ...data, id: selected.id } : e)); logAction(`Editó evento "${form.name}"`, "eventos"); }
     setModal(null);
   }
