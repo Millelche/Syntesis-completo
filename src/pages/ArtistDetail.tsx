@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import emailjs from "@emailjs/browser";
+import { useAdmin } from "@/admin/context/AdminContext";
 
 const ArtistDetail = () => {
   const stored_artists = localStorage.getItem("syntesis_artists");
   const artists = stored_artists ? JSON.parse(stored_artists) : default_artists;
+  const { addBookingRequest } = useAdmin();
   const { slug } = useParams<{ slug: string }>();
   const artist = artists.find(a => a.slug === slug);
   
@@ -38,12 +41,49 @@ const ArtistDetail = () => {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Booking Request Sent",
-      description: `Thank you for your interest in booking ${artist.name}. We'll be in touch soon.`,
+
+    // 1. Guarda el booking en localStorage (visible en el panel admin)
+    addBookingRequest({
+      artist: artist.name,
+      name: formData.name,
+      organizationName: formData.organizationName,
+      promoterPage: formData.promoterPage,
+      email: formData.email,
+      phone: formData.phone,
+      city: formData.city,
+      message: formData.message,
     });
+
+    // 2. Envía el mail a bookings@syntesis.ar via EmailJS
+    try {
+      await emailjs.send(
+        "service_6mtajxs",    // Service ID de EmailJS
+        "booking_request",    // Template ID de EmailJS
+        {
+          artist:        artist.name,
+          name:          formData.name,
+          organization:  formData.organizationName,
+          promoter_page: formData.promoterPage,
+          email:         formData.email,
+          phone:         formData.phone,
+          city:          formData.city,
+          message:       formData.message,
+          date:          new Date().toLocaleString("es-AR"),
+        },
+        "gRvFi6ZHl2t2EQHD9"  // Public Key de EmailJS
+      );
+    } catch (error) {
+      console.error("Error al enviar el mail de booking:", error);
+      // El booking queda guardado en localStorage aunque el mail falle
+    }
+
+    toast({
+      title: "Booking enviado",
+      description: `Gracias por tu interés en reservar a ${artist.name}. Nos contactaremos pronto.`,
+    });
+
     setFormData({ name: "", organizationName: "", promoterPage: "", email: "", phone: "", city: "", message: "" });
   };
 

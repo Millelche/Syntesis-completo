@@ -109,6 +109,7 @@ export default function Dates() {
 
   function handleSave() {
     if (form.artists.length === 0 || !form.date || !form.venue) return;
+    if (form.date < "2024-09-01") { alert("No se permiten fechas anteriores a septiembre de 2024."); return; }
     const data: BookingDateV2 = { ...form };
     if (modal === "create") {
       persist([...dates, {...data, id:Date.now().toString()}]);
@@ -197,7 +198,7 @@ export default function Dates() {
               </div>
 
               {/* Fecha */}
-              <div><label style={lbl}>Fecha *</label><input type="date" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
+              <div><label style={lbl}>Fecha *</label><input type="date" min="2024-09-01" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
 
               {/* Venue + Ciudad */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>

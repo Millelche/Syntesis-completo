@@ -78,6 +78,7 @@ export default function Events() {
 
   function handleSave() {
     if (!form.name.trim()||!form.date) return;
+    if (form.date < "2024-09-01") { alert("No se permiten eventos anteriores a septiembre de 2024."); return; }
     const slug = form.name.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
     const data: Event = { ...form, slug, lineup:parseLines(lineupText), setTimes:parseSetTimes(setTimesText), ticketLinks:parseTickets(ticketsText), isPast:new Date(form.date)<new Date() };
     if (modal==="create") { persist([data,...events]); logAction(`Creó evento "${form.name}"`, "eventos"); }
@@ -128,7 +129,7 @@ export default function Events() {
             <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
               <div><label style={lbl}>Nombre del evento *</label><input style={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ej: SYNTESIS 009"/></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
-                <div><label style={lbl}>Fecha *</label><input type="date" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
+                <div><label style={lbl}>Fecha *</label><input type="date" min="2024-09-01" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
                 <div><label style={lbl}>Venue</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
