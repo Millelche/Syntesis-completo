@@ -1,16 +1,15 @@
 /**
- * Artists.tsx — v2
- * CRUD de artistas con soporte de tema oscuro/claro y permisos v2.
- * La conversión a WebP, upload de foto y lógica de CRUD se mantiene igual.
+ * Artists.tsx — v3
+ * CRUD de artistas con Supabase como backend.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
 import { darkTheme, lightTheme } from "@/admin/components/theme";
 import AdminLayout from "@/admin/components/AdminLayout";
 import { Navigate } from "react-router-dom";
 import { artists as defaultArtists, Artist } from "@/data/mockData";
+import { supabase } from "@/lib/supabase";
 
-/** Convierte cualquier imagen a WebP usando Canvas API */
 function convertToWebP(file: File, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -35,16 +34,15 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
 const EMPTY: Artist = { id:"", name:"", slug:"", image:"", bio:"", genre:"", performances:[], labels:[], location:"", nationality:"", representation:"", socials:{} };
 
 export default function Artists() {
-  const { can, currentUser, getStorage, setStorage, logAction, theme } = useAdmin();
+  const { can, currentUser, logAction, theme } = useAdmin();
   const t = theme === "dark" ? darkTheme : lightTheme;
 
   const hasView = currentUser?.isSuperAdmin || can("editor_artistas") || can("editor_eventos");
   if (!hasView) return <Navigate to="/admin/dashboard" replace />;
-
   const canEdit = currentUser?.isSuperAdmin || can("editor_artistas");
 
-  const stored = getStorage<Artist[]>("artists");
-  const [artists, setArtists]   = useState<Artist[]>(stored ?? defaultArtists);
+  const [artists, setArtists]   = useState<Artist[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [modal, setModal]       = useState<null|"create"|"edit"|"delete">(null);
   const [selected, setSelected] = useState<Artist|null>(null);
   const [form, setForm]         = useState<Artist>({...EMPTY});
@@ -54,7 +52,33 @@ export default function Artists() {
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
 
-  function persist(updated: Artist[]) { setArtists(updated); setStorage("artists", updated); }
+  // ── Carga inicial desde Supabase ──────────────────────────────────────────
+  useEffect(() => {
+    async function load() {
+      const { data, error } = await supabase.from("artists").select("*").order("sort_order", { ascending: true });
+      if (error || !data || data.length === 0) {
+        setArtists(defaultArtists);
+      } else {
+        setArtists(data.map(row => ({
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          image: row.image ?? "",
+          bio: row.bio ?? "",
+          genre: row.genre ?? "",
+          performances: row.performances ?? [],
+          labels: row.labels ?? [],
+          location: row.location ?? "",
+          nationality: row.nationality ?? "",
+          representation: row.representation ?? "",
+          socials: row.socials ?? {},
+        })));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
   function openCreate() { setForm({...EMPTY}); setDone(false); setModal("create"); }
   function openEdit(a: Artist) { setSelected(a); setForm({...a, performances:[...a.performances], labels:[...a.labels], socials:{...a.socials}}); setDone(false); setModal("edit"); }
   function openDelete(a: Artist) { setSelected(a); setModal("delete"); }
@@ -67,25 +91,48 @@ export default function Artists() {
     finally { setConv(false); }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()) return;
     const slug = form.name.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
+    const row = {
+      id: modal === "create" ? Date.now().toString() : selected!.id,
+      name: form.name,
+      slug,
+      image: form.image,
+      bio: form.bio,
+      genre: form.genre,
+      performances: form.performances,
+      labels: form.labels,
+      location: form.location,
+      nationality: form.nationality,
+      representation: form.representation,
+      socials: form.socials,
+      sort_order: modal === "create" ? artists.length : undefined,
+    };
     if (modal === "create") {
-      persist([...artists, {...form, id:Date.now().toString(), slug}]);
+      const { error } = await supabase.from("artists").insert(row);
+      if (error) { alert("Error al guardar: " + error.message); return; }
+      setArtists(prev => [...prev, {...form, id: row.id, slug}]);
       logAction(`Creó artista "${form.name}"`, "artistas");
     } else if (modal === "edit" && selected) {
-      persist(artists.map(a => a.id === selected.id ? {...form, slug} : a));
+      const { error } = await supabase.from("artists").update({...row, sort_order: undefined}).eq("id", selected.id);
+      if (error) { alert("Error al guardar: " + error.message); return; }
+      setArtists(prev => prev.map(a => a.id === selected.id ? {...form, slug} : a));
       logAction(`Editó artista "${form.name}"`, "artistas");
     }
     setModal(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!selected) return;
-    persist(artists.filter(a => a.id !== selected.id));
+    const { error } = await supabase.from("artists").delete().eq("id", selected.id);
+    if (error) { alert("Error al eliminar: " + error.message); return; }
+    setArtists(prev => prev.filter(a => a.id !== selected.id));
     logAction(`Eliminó artista "${selected.name}"`, "artistas");
     setModal(null);
   }
+
+  if (loading) return <AdminLayout><div style={{padding:"2.5rem",color:t.textMuted,fontSize:13}}>Cargando artistas...</div></AdminLayout>;
 
   return (
     <AdminLayout>
@@ -123,7 +170,6 @@ export default function Artists() {
         </div>
       </div>
 
-      {/* Modal crear/editar */}
       {(modal==="create"||modal==="edit") && (
         <div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:100,padding:"2rem",overflowY:"auto"}}>
           <div style={{backgroundColor:t.bgModal,border:`1px solid ${t.border}`,padding:"2rem",width:"100%",maxWidth:640,marginBottom:"2rem"}}>
@@ -150,7 +196,7 @@ export default function Artists() {
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Foto del artista</label>
                 <input type="file" accept="image/*" onChange={handleImage} style={{fontSize:12,color:t.textMuted,cursor:"pointer"}}/>
-                {converting && <div style={{fontSize:11,color:t.textMuted,marginTop:8}}>⏳ Convirtiendo a WebP para optimización web...</div>}
+                {converting && <div style={{fontSize:11,color:t.textMuted,marginTop:8}}>⏳ Convirtiendo a WebP...</div>}
                 {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Imagen optimizada para web (WebP)</div>}
                 {form.image && !converting && <img src={form.image} alt="Preview" style={{marginTop:10,width:90,height:90,objectFit:"cover",border:`1px solid ${t.border}`}}/>}
               </div>
@@ -163,7 +209,6 @@ export default function Artists() {
         </div>
       )}
 
-      {/* Modal eliminar */}
       {modal==="delete" && (
         <div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}>
           <div style={{backgroundColor:t.bgModal,border:`1px solid ${t.border}`,padding:"2rem",width:"100%",maxWidth:380,textAlign:"center"}}>

@@ -1,13 +1,14 @@
 /**
- * Events.tsx — v2
- * CRUD de eventos con soporte de tema oscuro/claro y permisos v2.
+ * Events.tsx — v3
+ * CRUD de eventos con Supabase como backend.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
 import { darkTheme, lightTheme } from "@/admin/components/theme";
 import AdminLayout from "@/admin/components/AdminLayout";
 import { Navigate } from "react-router-dom";
 import { events as defaultEvents, Event } from "@/data/mockData";
+import { supabase } from "@/lib/supabase";
 
 function convertToWebP(file: File, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -32,15 +33,15 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
 const EMPTY: Event = { id:"", name:"", slug:"", date:"", venue:"", city:"", flyer:"", description:"", lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:"" };
 
 export default function Events() {
-  const { can, currentUser, getStorage, setStorage, logAction, theme } = useAdmin();
+  const { can, currentUser, logAction, theme } = useAdmin();
   const t = theme === "dark" ? darkTheme : lightTheme;
 
   const hasView = currentUser?.isSuperAdmin || can("editor_eventos") || can("editor_artistas");
   if (!hasView) return <Navigate to="/admin/dashboard" replace />;
   const canEdit = currentUser?.isSuperAdmin || can("editor_eventos");
 
-  const stored = getStorage<Event[]>("events");
-  const [events, setEvents]     = useState<Event[]>(stored ?? defaultEvents);
+  const [events, setEvents]     = useState<Event[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [modal, setModal]       = useState<null|"create"|"edit"|"delete">(null);
   const [selected, setSelected] = useState<Event|null>(null);
   const [form, setForm]         = useState<Event>({...EMPTY});
@@ -53,7 +54,34 @@ export default function Events() {
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
 
-  function persist(updated: Event[]) { setEvents(updated); setStorage("events", updated); }
+  // ── Carga inicial desde Supabase ──────────────────────────────────────────
+  useEffect(() => {
+    async function load() {
+      const { data, error } = await supabase.from("events").select("*").order("date", { ascending: false });
+      if (error || !data || data.length === 0) {
+        setEvents(defaultEvents);
+      } else {
+        setEvents(data.map(row => ({
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          date: row.date,
+          venue: row.venue ?? "",
+          city: row.city ?? "",
+          flyer: row.flyer ?? "",
+          description: row.description ?? "",
+          lineup: row.lineup ?? [],
+          setTimes: row.set_times ?? [],
+          ticketLinks: row.ticket_links ?? [],
+          recordedSets: row.recorded_sets ?? "",
+          isPast: row.is_past ?? false,
+        })));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
   function openCreate() { setForm({...EMPTY}); setLineupText(""); setSetTimesText(""); setTicketsText(""); setDone(false); setModal("create"); }
   function openEdit(e: Event) {
     setSelected(e); setForm({...e});
@@ -76,25 +104,56 @@ export default function Events() {
   function parseSetTimes(text: string) { return parseLines(text).map(line=>{ const [artist,time]=line.split("|").map(s=>s.trim()); return {artist:artist??"",time:time??""}; }); }
   function parseTickets(text: string) { return parseLines(text).map(line=>{ const [name,url]=line.split("|").map(s=>s.trim()); return {name:name??"",url:url??""}; }); }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()||!form.date) return;
     if (form.date < "2024-09-01") { alert("No se permiten eventos anteriores a septiembre de 2024."); return; }
     const slug = form.name.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
-    const data: Event = { ...form, slug, lineup:parseLines(lineupText), setTimes:parseSetTimes(setTimesText), ticketLinks:parseTickets(ticketsText), isPast:new Date(form.date)<new Date() };
-    if (modal==="create") { persist([data,...events]); logAction(`Creó evento "${form.name}"`, "eventos"); }
-    else if (modal==="edit"&&selected) { persist(events.map(e=>e.id===selected.id?{...data,id:selected.id}:e)); logAction(`Editó evento "${form.name}"`, "eventos"); }
+    const lineup = parseLines(lineupText);
+    const setTimes = parseSetTimes(setTimesText);
+    const ticketLinks = parseTickets(ticketsText);
+    const isPast = new Date(form.date) < new Date();
+    const row = {
+      id: modal === "create" ? Date.now().toString() : selected!.id,
+      name: form.name,
+      slug,
+      date: form.date,
+      venue: form.venue,
+      city: form.city,
+      flyer: form.flyer,
+      description: form.description,
+      lineup,
+      set_times: setTimes,
+      ticket_links: ticketLinks,
+      recorded_sets: form.recordedSets,
+      is_past: isPast,
+    };
+    if (modal === "create") {
+      const { error } = await supabase.from("events").insert(row);
+      if (error) { alert("Error al guardar: " + error.message); return; }
+      setEvents(prev => [{...form, id:row.id, slug, lineup, setTimes, ticketLinks, isPast}, ...prev]);
+      logAction(`Creó evento "${form.name}"`, "eventos");
+    } else if (modal === "edit" && selected) {
+      const { error } = await supabase.from("events").update(row).eq("id", selected.id);
+      if (error) { alert("Error al guardar: " + error.message); return; }
+      setEvents(prev => prev.map(e => e.id === selected.id ? {...form, id:selected.id, slug, lineup, setTimes, ticketLinks, isPast} : e));
+      logAction(`Editó evento "${form.name}"`, "eventos");
+    }
     setModal(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!selected) return;
-    persist(events.filter(e=>e.id!==selected.id));
+    const { error } = await supabase.from("events").delete().eq("id", selected.id);
+    if (error) { alert("Error al eliminar: " + error.message); return; }
+    setEvents(prev => prev.filter(e => e.id !== selected.id));
     logAction(`Eliminó evento "${selected.name}"`, "eventos");
     setModal(null);
   }
 
   const upcoming = events.filter(e=>!e.isPast);
   const past     = events.filter(e=>e.isPast);
+
+  if (loading) return <AdminLayout><div style={{padding:"2.5rem",color:t.textMuted,fontSize:13}}>Cargando eventos...</div></AdminLayout>;
 
   return (
     <AdminLayout>
@@ -121,7 +180,6 @@ export default function Events() {
         )}
       </div>
 
-      {/* Modal crear/editar */}
       {(modal==="create"||modal==="edit") && (
         <div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.9)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:100,padding:"2rem",overflowY:"auto"}}>
           <div style={{backgroundColor:t.bgModal,border:`1px solid ${t.border}`,padding:"2rem",width:"100%",maxWidth:640,marginBottom:"2rem"}}>
