@@ -52,7 +52,7 @@ export const Footer = ({ variant = "light" }: FooterProps) => {
           </div>
           
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Syntesis. All rights reserved.
+            ® {new Date().getFullYear()} Syntesis. All rights reserved.
           </p>
         </div>
       </div>
