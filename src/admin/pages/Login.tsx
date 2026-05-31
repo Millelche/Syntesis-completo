@@ -1,39 +1,52 @@
 /**
- * Login.tsx — v2
- * Pantalla de login del panel admin con soporte de tema oscuro/claro.
+ * Login.tsx — v3
+ * Pantalla de login con reCAPTCHA v2.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
 import { darkTheme, lightTheme } from "@/admin/components/theme";
 import { useNavigate } from "react-router-dom";
+import ReCAPTCHA from "react-google-recaptcha";
+
+const RECAPTCHA_KEY = import.meta.env.VITE_RECAPTCHA_KEY;
 
 export default function Login() {
   const { login, currentUser, theme, toggleTheme } = useAdmin();
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [username, setUsername]     = useState("");
+  const [password, setPassword]     = useState("");
+  const [error, setError]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [captchaDone, setCaptchaDone] = useState(false);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   const t = theme === "dark" ? darkTheme : lightTheme;
 
-  // Si ya hay sesión activa, redirige al dashboard
   useEffect(() => {
     if (currentUser) navigate("/admin/dashboard", { replace: true });
   }, [currentUser, navigate]);
 
+  function handleCaptcha(token: string | null) {
+    setCaptchaDone(!!token);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!captchaDone) {
+      setError("Por favor completá el captcha.");
+      return;
+    }
     setLoading(true);
     setError("");
-    // Delay mínimo para no revelar si el usuario existe por tiempo de respuesta
     setTimeout(() => {
       const ok = login(username.trim(), password);
       if (ok) {
         navigate("/admin/dashboard");
       } else {
         setError("Usuario o contraseña incorrectos");
+        recaptchaRef.current?.reset();
+        setCaptchaDone(false);
       }
       setLoading(false);
     }, 400);
@@ -79,20 +92,14 @@ export default function Login() {
         position: "relative",
       }}>
 
-        {/* Toggle theme — esquina superior derecha */}
+        {/* Toggle theme */}
         <button
           onClick={toggleTheme}
           title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
           style={{
-            position: "absolute",
-            top: 12,
-            right: 12,
-            fontSize: 14,
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            opacity: 0.5,
-            transition: "opacity 0.15s",
+            position: "absolute", top: 12, right: 12,
+            fontSize: 14, background: "none", border: "none",
+            cursor: "pointer", opacity: 0.5, transition: "opacity 0.15s",
           }}
           onMouseOver={e => (e.currentTarget.style.opacity = "1")}
           onMouseOut={e => (e.currentTarget.style.opacity = "0.5")}
@@ -100,7 +107,7 @@ export default function Login() {
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
 
-        {/* Logo y título */}
+        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
           <svg viewBox="0 0 1788 895" xmlns="http://www.w3.org/2000/svg" style={{ width: 48, height: 24, marginBottom: 16 }}>
             <polygon fill={t.text} points="1788,180 1788,0 178,0 178,178 0,178 0,358 178,358 178,537 1608,537 1608,714 0,714 0,894 1431,894 1609,894 1609,716 1788,716 1788,536 1609,536 1609,357 180,357 180,180"/>
@@ -141,13 +148,20 @@ export default function Login() {
             />
           </div>
 
+          {/* reCAPTCHA */}
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={RECAPTCHA_KEY}
+              onChange={handleCaptcha}
+              theme={theme === "dark" ? "dark" : "light"}
+            />
+          </div>
+
           {error && (
             <div style={{
-              fontSize: 11,
-              color: t.danger,
-              textAlign: "center",
-              padding: "7px",
-              backgroundColor: t.dangerBg,
+              fontSize: 11, color: t.danger, textAlign: "center",
+              padding: "7px", backgroundColor: t.dangerBg,
               border: `1px solid ${t.dangerBorder}`,
             }}>
               {error}
@@ -156,7 +170,7 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !captchaDone}
             style={{
               backgroundColor: t.accent,
               color: t.accentText,
@@ -166,8 +180,8 @@ export default function Login() {
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               border: "none",
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.7 : 1,
+              cursor: loading || !captchaDone ? "not-allowed" : "pointer",
+              opacity: loading || !captchaDone ? 0.5 : 1,
               marginTop: "0.5rem",
               transition: "opacity 0.2s",
             }}
