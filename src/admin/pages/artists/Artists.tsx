@@ -32,6 +32,34 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
   });
 }
 
+function generatePlaceholderImage(name: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800; canvas.height = 800;
+  const ctx = canvas.getContext("2d")!;
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 800, 800);
+  
+  ctx.fillStyle = "#000000";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  
+  const words = name.toUpperCase().split(" ");
+  const fontSize = words.some(w => w.length > 8) ? 72 : 88;
+  ctx.font = `700 ${fontSize}px sans-serif`;
+  
+  if (words.length === 1) {
+    ctx.fillText(words[0], 400, 400);
+  } else {
+    const mid = Math.ceil(words.length / 2);
+    const line1 = words.slice(0, mid).join(" ");
+    const line2 = words.slice(mid).join(" ");
+    ctx.fillText(line1, 400, 340);
+    ctx.fillText(line2, 400, 460);
+  }
+  
+  return canvas.toDataURL("image/webp", 0.9);
+}
 const EMPTY: Artist = { id: "", name: "", slug: "", image: "", bio: "", genre: "", performances: [], labels: [], location: "", nationality: "", representation: "", socials: [], order: 0 };
 
 export default function Artists() {
@@ -85,7 +113,7 @@ export default function Artists() {
       persist([...artists, { ...form, id: Date.now().toString(), slug, image }]);
       logAction(`Creó artista "${form.name}"`, "artistas");
     } else if (modal === "edit" && selected) {
-      persist(artists.map(a => a.id === selected.id ? { ...form, slug } : a));
+      persist(artists.map(a => a.id === selected.id ? { ...form, slug, image } : a));
       logAction(`Editó artista "${form.name}"`, "artistas");
     }
     setModal(null);
@@ -242,33 +270,4 @@ export default function Artists() {
       )}
     </AdminLayout>
   );
-
-  function generatePlaceholderImage(name: string): string {
-  const canvas = document.createElement("canvas");
-  canvas.width = 800; canvas.height = 800;
-  const ctx = canvas.getContext("2d")!;
-  
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, 800, 800);
-  
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  
-  const words = name.toUpperCase().split(" ");
-  const fontSize = words.some(w => w.length > 8) ? 72 : 88;
-  ctx.font = `700 ${fontSize}px sans-serif`;
-  
-  if (words.length === 1) {
-    ctx.fillText(words[0], 400, 400);
-  } else {
-    const mid = Math.ceil(words.length / 2);
-    const line1 = words.slice(0, mid).join(" ");
-    const line2 = words.slice(mid).join(" ");
-    ctx.fillText(line1, 400, 340);
-    ctx.fillText(line2, 400, 460);
-  }
-  
-  return canvas.toDataURL("image/webp", 0.9);
-}
 }
