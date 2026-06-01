@@ -82,7 +82,8 @@ export default function Events() {
   function handleSave() {
     if (!form.name.trim() || !form.date) return;
     const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    const data: Event = { ...form, slug, lineup: parseLines(lineupText), setTimes: parseSetTimes(setTimesText), ticketLinks: tickets.filter(t => t.name || t.url), isPast: new Date(form.date) < new Date() };
+    const flyer = form.flyer || generatePlaceholderImage(form.name);
+    const data: Event = { ...form, slug, flyer, lineup: parseLines(lineupText), setTimes: parseSetTimes(setTimesText), ticketLinks: tickets.filter(t => t.name || t.url), isPast: new Date(form.date) < new Date() };
     if (modal === "create") {
       persist([{ ...data, id: Date.now().toString() }, ...events]); logAction(`Creó evento "${form.name}"`, "eventos");
     }
@@ -215,7 +216,6 @@ export default function Events() {
 }
 
 function EventRow({ event, canEdit, onEdit, onDelete, t }: { event: Event; canEdit: boolean; onEdit: (e: Event) => void; onDelete: (e: Event) => void; t: any }) {
-  console.log(event[0]);
   return (
     <div style={{ backgroundColor: t.bgCard, border: `1px solid ${t.border}`, padding: "1.25rem 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
@@ -240,4 +240,33 @@ function EventRow({ event, canEdit, onEdit, onDelete, t }: { event: Event; canEd
       )}
     </div>
   );
+}
+
+function generatePlaceholderImage(name: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800; canvas.height = 800;
+  const ctx = canvas.getContext("2d")!;
+  
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, 800, 800);
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  
+  const words = name.toUpperCase().split(" ");
+  const fontSize = words.some(w => w.length > 8) ? 72 : 88;
+  ctx.font = `700 ${fontSize}px sans-serif`;
+  
+  if (words.length === 1) {
+    ctx.fillText(words[0], 400, 400);
+  } else {
+    const mid = Math.ceil(words.length / 2);
+    const line1 = words.slice(0, mid).join(" ");
+    const line2 = words.slice(mid).join(" ");
+    ctx.fillText(line1, 400, 340);
+    ctx.fillText(line2, 400, 460);
+  }
+  
+  return canvas.toDataURL("image/webp", 0.9);
 }
