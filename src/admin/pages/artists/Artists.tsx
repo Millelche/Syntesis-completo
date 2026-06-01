@@ -36,18 +36,18 @@ function generatePlaceholderImage(name: string): string {
   const canvas = document.createElement("canvas");
   canvas.width = 800; canvas.height = 800;
   const ctx = canvas.getContext("2d")!;
-  
+
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, 800, 800);
-  
+
   ctx.fillStyle = "#000000";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  
+
   const words = name.toUpperCase().split(" ");
   const fontSize = words.some(w => w.length > 8) ? 72 : 88;
   ctx.font = `700 ${fontSize}px sans-serif`;
-  
+
   if (words.length === 1) {
     ctx.fillText(words[0], 400, 400);
   } else {
@@ -57,7 +57,7 @@ function generatePlaceholderImage(name: string): string {
     ctx.fillText(line1, 400, 340);
     ctx.fillText(line2, 400, 460);
   }
-  
+
   return canvas.toDataURL("image/webp", 0.9);
 }
 const EMPTY: Artist = { id: "", name: "", slug: "", image: "", bio: "", genre: "", performances: [], labels: [], location: "", nationality: "", representation: "", socials: [], order: 0 };
@@ -83,7 +83,7 @@ export default function Artists() {
   const lbl: React.CSSProperties = { fontSize: 9, letterSpacing: "0.18em", color: t.textMuted, display: "block", marginBottom: 5, textTransform: "uppercase" };
 
   function persist(updated: Artist[]) { setArtists(updated); setStorage("artists", updated); }
-  function openCreate() { setForm({ ...EMPTY }); setDone(false); setModal("create"); }
+  function openCreate() { setForm({ ...EMPTY }); setErrors([]); setDone(false); setModal("create"); }
   function openEdit(a: Artist) {
     setSelected(a);
     setForm({
@@ -92,6 +92,7 @@ export default function Artists() {
       labels: [...a.labels],
       socials: Array.isArray(a.socials) ? [...a.socials] : []
     });
+    setErrors([]);
     setDone(false);
     setModal("edit");
   }
@@ -105,10 +106,17 @@ export default function Artists() {
     finally { setConv(false); }
   }
 
+  const [errors, setErrors] = useState<string[]>([]);
+
   function handleSave() {
-    if (!form.name.trim()) return;
+    const errs: string[] = [];
+    if (!form.name.trim()) errs.push("El nombre es obligatorio.");
+    if (!form.genre.trim()) errs.push("El género es obligatorio.");
+    if (errs.length > 0) { setErrors(errs); return; }
+    setErrors([]);
+
     const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    const image = form.image || generatePlaceholderImage(form.name); 
+    const image = form.image || generatePlaceholderImage(form.name);
     if (modal === "create") {
       persist([...artists, { ...form, id: Date.now().toString(), slug, image }]);
       logAction(`Creó artista "${form.name}"`, "artistas");
@@ -246,6 +254,13 @@ export default function Artists() {
                 {converted && !converting && <div style={{ fontSize: 11, color: t.success, marginTop: 8 }}>✓ Imagen optimizada para web (WebP)</div>}
                 {form.image && !converting && <img src={form.image} alt="Preview" style={{ marginTop: 10, width: 90, height: 90, objectFit: "cover", border: `1px solid ${t.border}` }} />}
               </div>
+              {errors.length > 0 && (
+                <div style={{ backgroundColor: t.dangerBg, border: `1px solid ${t.dangerBorder}`, padding: "10px 14px", marginBottom: 8 }}>
+                  {errors.map((err, i) => (
+                    <div key={i} style={{ fontSize: 11, color: t.danger, lineHeight: 1.8 }}>{err}</div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8, marginTop: "0.75rem" }}>
                 <button onClick={handleSave} style={{ flex: 1, backgroundColor: t.accent, color: t.accentText, padding: "10px", fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", border: "none", cursor: "pointer" }}>{modal === "create" ? "Crear artista" : "Guardar cambios"}</button>
                 <button onClick={() => setModal(null)} style={{ flex: 1, backgroundColor: "transparent", color: t.textMuted, padding: "10px", fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", border: `1px solid ${t.border}`, cursor: "pointer" }}>Cancelar</button>

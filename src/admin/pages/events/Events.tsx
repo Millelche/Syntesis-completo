@@ -54,7 +54,7 @@ export default function Events() {
   const lbl: React.CSSProperties = { fontSize: 9, letterSpacing: "0.18em", color: t.textMuted, display: "block", marginBottom: 5, textTransform: "uppercase" };
 
   function persist(updated: Event[]) { setEvents(updated); setStorage("events", updated); }
-  function openCreate() { setForm({ ...EMPTY }); setLineupText(""); setSetTimesText(""); setTickets([{ name: "", url: "" }]); setDone(false); setModal("create"); }
+  function openCreate() { setForm({ ...EMPTY }); setErrors([]); setLineupText(""); setSetTimesText(""); setTickets([{ name: "", url: "" }]); setDone(false); setModal("create"); }
   function openEdit(e: Event) {
     setSelected(e); setForm({ ...e });
     setLineupText(e.lineup.join("\n"));
@@ -64,6 +64,7 @@ export default function Events() {
       : [{ name: "", url: "" }]
     ); // ← reemplaza setTicketsText(...)
     setDone(false); setModal("edit");
+    setErrors([]);
   }
   function openDelete(e: Event) { setSelected(e); setModal("delete"); }
 
@@ -79,15 +80,26 @@ export default function Events() {
   function parseSetTimes(text: string) { return parseLines(text).map(line => { const [artist, time] = line.split("|").map(s => s.trim()); return { artist: artist ?? "", time: time ?? "" }; }); }
   function parseTickets(text: string) { return parseLines(text).map(line => { const [name, url] = line.split("|").map(s => s.trim()); return { name: name ?? "", url: url ?? "" }; }); }
 
+  const [errors, setErrors] = useState<string[]>([]);
+
   function handleSave() {
-    if (!form.name.trim() || !form.date) return;
+    const errs: string[] = [];
+    if (!form.name.trim()) errs.push("El nombre del evento es obligatorio.");
+    if (!form.date) errs.push("La fecha de inicio es obligatoria.");
+    if (!form.time) errs.push("La hora de inicio es obligatoria.");
+    if (errs.length > 0) { setErrors(errs); return; }
+    setErrors([]);
+
     const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     const flyer = form.flyer || generatePlaceholderImage(form.name);
     const data: Event = { ...form, slug, flyer, lineup: parseLines(lineupText), setTimes: parseSetTimes(setTimesText), ticketLinks: tickets.filter(t => t.name || t.url), isPast: new Date(form.date) < new Date() };
     if (modal === "create") {
-      persist([{ ...data, id: Date.now().toString() }, ...events]); logAction(`Creó evento "${form.name}"`, "eventos");
+      persist([{ ...data, id: Date.now().toString() }, ...events]);
+      logAction(`Creó evento "${form.name}"`, "eventos");
+    } else if (modal === "edit" && selected) {
+      persist(events.map(e => e.id === selected.id ? { ...data, id: selected.id } : e));
+      logAction(`Editó evento "${form.name}"`, "eventos");
     }
-    else if (modal === "edit" && selected) { persist(events.map(e => e.id === selected.id ? { ...data, id: selected.id } : e)); logAction(`Editó evento "${form.name}"`, "eventos"); }
     setModal(null);
   }
 
@@ -190,6 +202,13 @@ export default function Events() {
                 {converted && !converting && <div style={{ fontSize: 11, color: t.success, marginTop: 8 }}>✓ Flyer optimizado para web (WebP)</div>}
                 {form.flyer && !converting && <img src={form.flyer} alt="Flyer" style={{ marginTop: 10, height: 100, border: `1px solid ${t.border}` }} />}
               </div>
+              {errors.length > 0 && (
+                <div style={{ backgroundColor: t.dangerBg, border: `1px solid ${t.dangerBorder}`, padding: "10px 14px", marginBottom: 8 }}>
+                  {errors.map((err, i) => (
+                    <div key={i} style={{ fontSize: 11, color: t.danger, lineHeight: 1.8 }}>{err}</div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8, marginTop: "0.75rem" }}>
                 <button onClick={handleSave} style={{ flex: 1, backgroundColor: t.accent, color: t.accentText, padding: "10px", fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", border: "none", cursor: "pointer" }}>{modal === "create" ? "Crear evento" : "Guardar cambios"}</button>
                 <button onClick={() => setModal(null)} style={{ flex: 1, backgroundColor: "transparent", color: t.textMuted, padding: "10px", fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", border: `1px solid ${t.border}`, cursor: "pointer" }}>Cancelar</button>
@@ -246,18 +265,18 @@ function generatePlaceholderImage(name: string): string {
   const canvas = document.createElement("canvas");
   canvas.width = 800; canvas.height = 800;
   const ctx = canvas.getContext("2d")!;
-  
+
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, 800, 800);
-  
+
   ctx.fillStyle = "#ffffff";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  
+
   const words = name.toUpperCase().split(" ");
   const fontSize = words.some(w => w.length > 8) ? 72 : 88;
   ctx.font = `700 ${fontSize}px sans-serif`;
-  
+
   if (words.length === 1) {
     ctx.fillText(words[0], 400, 400);
   } else {
@@ -267,6 +286,6 @@ function generatePlaceholderImage(name: string): string {
     ctx.fillText(line1, 400, 340);
     ctx.fillText(line2, 400, 460);
   }
-  
+
   return canvas.toDataURL("image/webp", 0.9);
 }
