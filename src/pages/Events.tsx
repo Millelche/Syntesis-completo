@@ -1,6 +1,7 @@
 import Layout from "@/components/Layout";
 import EventCard from "@/components/EventCard";
 import { events as default_events } from "@/data/mockData";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const Events = () => {
@@ -60,13 +61,15 @@ const Events = () => {
               </span>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <div className="opacity-0 animate-fade-up stagger-1">
-                  <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
-                    <img
-                      src={featuredEvent.flyer}
-                      alt={featuredEvent.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <Link to={`/events/${featuredEvent.slug}`}>
+                    <div className="relative aspect-[3/4] overflow-hidden bg-secondary cursor-pointer">
+                      <img
+                        src={featuredEvent.flyer}
+                        alt={featuredEvent.name}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                  </Link>
                 </div>
 
                 <div className="flex flex-col justify-center opacity-0 animate-fade-up stagger-2">
@@ -83,9 +86,11 @@ const Events = () => {
                       </div>
                     )}
                   </div>
-                  <h1 className="text-display-lg md:text-display-xl font-display mb-4">
-                    {featuredEvent.name}
-                  </h1>
+                 <Link to={`/events/${featuredEvent.slug}`}>
+                    <h1 className="text-display-lg md:text-display-xl font-display mb-4 hover:text-primary transition-colors cursor-pointer">
+                      {featuredEvent.name}
+                    </h1>
+                  </Link>
                   <p className="text-lg text-muted-foreground mb-2">
                     {featuredEvent.venue}
                   </p>

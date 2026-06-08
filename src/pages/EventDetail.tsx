@@ -91,25 +91,20 @@ const EventDetail = () => {
               <div className="text-sm uppercase tracking-widest text-primary block mb-4">
                 <div>{formattedDate}</div>
 
-                
-
-                {(event.startTime || event.time) && (
-                  <div className="mt-1">
-                    {event.startTime || event.time} HS
-                  </div>
-                )}
-
-                {event.endDate &&
-                  event.endDate !== event.startDate && (
-                    <>
-                      <div className="mt-2">
-                        {formatDate(event.endDate)}
-                      </div>
-
+                {!isEventEnded() && (
+                  <>
+                    {event.startTime && event.endTime ? (
                       <div className="mt-1">
-                        {event.endTime} HS
+                        {event.startTime} → {event.endTime} HS
                       </div>
-                    </>
+                    ) : (
+                      (event.startTime || event.time) && (
+                        <div className="mt-1">
+                          {event.startTime || event.time} HS
+                        </div>
+                      )
+                    )}
+                  </>
                 )}
               </div>
                             
