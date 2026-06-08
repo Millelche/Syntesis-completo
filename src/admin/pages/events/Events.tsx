@@ -28,8 +28,30 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
     img.onerror = () => reject("Error"); img.src = url;
   });
 }
+// se actualiza la interfaz Event para incluir start/end date/time, y se adapta el código para manejar ambos formatos (fecha única o rango de fechas)
+const EMPTY: Event = {
+  id: "",
+  name: "",
+  slug: "",
 
-const EMPTY: Event = { id: "", name: "", slug: "", date: "", time: "", venue: "", city: "", flyer: "", description: "", lineup: [], isPast: false, setTimes: [], ticketLinks: [], recordedSets: "" };
+  date: "",
+  time: "",
+
+  startDate: "",
+  startTime: "",
+  endDate: "",
+  endTime: "",
+
+  venue: "",
+  city: "",
+  flyer: "",
+  description: "",
+  lineup: [],
+  isPast: false,
+  setTimes: [],
+  ticketLinks: [],
+  recordedSets: ""
+};
 
 export default function Events() {
   const { can, currentUser, getStorage, setStorage, logAction, theme } = useAdmin();
@@ -85,22 +107,49 @@ export default function Events() {
   function handleSave() {
     const errs: string[] = [];
     if (!form.name.trim()) errs.push("El nombre del evento es obligatorio.");
-    if (!form.date) errs.push("La fecha de inicio es obligatoria.");
-    if (!form.time) errs.push("La hora de inicio es obligatoria.");
+    if (!form.startDate) errs.push("La fecha de inicio es obligatoria.");
+    if (!form.startTime) errs.push("La hora de inicio es obligatoria.");
+    if (!form.endDate) errs.push("La fecha de término es obligatoria.");
+    if (!form.endTime) errs.push("La hora de término es obligatoria.");
     if (errs.length > 0) { setErrors(errs); return; }
     setErrors([]);
 
     const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     const flyer = form.flyer || generatePlaceholderImage(form.name);
-    const data: Event = { ...form, slug, flyer, lineup: parseLines(lineupText), setTimes: parseSetTimes(setTimesText), ticketLinks: tickets.filter(t => t.name || t.url), isPast: new Date(form.date) < new Date() };
-    if (modal === "create") {
-      persist([{ ...data, id: Date.now().toString() }, ...events]);
-      logAction(`Creó evento "${form.name}"`, "eventos");
-    } else if (modal === "edit" && selected) {
-      persist(events.map(e => e.id === selected.id ? { ...data, id: selected.id } : e));
-      logAction(`Editó evento "${form.name}"`, "eventos");
-    }
-    setModal(null);
+   
+    // se actualiza la creación del evento para manejar el nuevo formato con fechas de inicio y término
+    const endDateTime = new Date(`${form.endDate}T${form.endTime || "23:59"}`);
+    const data: Event = {
+          ...form,
+          slug,
+          flyer,
+
+          date: form.startDate || form.date,
+          time: form.startTime || form.time,
+
+          lineup: parseLines(lineupText),
+          setTimes: parseSetTimes(setTimesText),
+          ticketLinks: tickets.filter(t => t.name || t.url),
+
+          isPast: endDateTime < new Date()
+        };
+
+        if (modal === "create") {
+          persist([{ ...data, id: Date.now().toString() }, ...events]);
+          logAction(`Creó evento "${form.name}"`, "eventos");
+        }
+        else if (modal === "edit" && selected) {
+          persist(
+            events.map(e =>
+              e.id === selected.id
+                ? { ...data, id: selected.id }
+                : e
+            )
+          );
+          logAction(`Editó evento "${form.name}"`, "eventos");
+        }
+
+        setModal(null);
   }
 
   function handleDelete() {
@@ -110,8 +159,18 @@ export default function Events() {
     setModal(null);
   }
 
-  const upcoming = events.filter(e => !e.isPast);
-  const past = events.filter(e => e.isPast);
+const isEventEnded = (event: Event) => {
+  if (event.endDate && event.endTime) {
+    return new Date(
+      `${event.endDate}T${event.endTime}`
+    ) < new Date();
+  }
+
+  return event.isPast;
+};
+
+const upcoming = events.filter(e => !isEventEnded(e));
+const past = events.filter(e => isEventEnded(e));
 
   return (
     <AdminLayout>
@@ -146,9 +205,68 @@ export default function Events() {
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div><label style={lbl}>Nombre del evento *</label><input style={inp} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ej: SYNTESIS 00x" /></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div><label style={lbl}>Fecha *</label><input type="date" style={inp} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
-                <div><label style={lbl}>Hora *</label><input type="time" style={inp} value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} /></div>
+                {/* Se actualiza parte del formulario para que aparescan las fechas  */}
+                <div>
+                  <label style={lbl}>Fecha Inicio *</label>
+                  <input
+                    type="date"
+                    style={inp}
+                    value={form.startDate || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        startDate: e.target.value,
+                        date: e.target.value
+                      }))
+                    }
+                  />
+                </div>
 
+                <div>
+                  <label style={lbl}>Hora Inicio *</label>
+                  <input
+                    type="time"
+                    style={inp}
+                    value={form.startTime || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        startTime: e.target.value,
+                        time: e.target.value
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={lbl}>Fecha Término *</label>
+                  <input
+                    type="date"
+                    style={inp}
+                    value={form.endDate || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        endDate: e.target.value
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={lbl}>Hora Término *</label>
+                  <input
+                    type="time"
+                    style={inp}
+                    value={form.endTime || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        endTime: e.target.value
+                      }))
+                    }
+                  />
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div><label style={lbl}>Ciudad</label><input style={inp} value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} placeholder="Ej: Buenos Aires" /></div>
@@ -233,6 +351,23 @@ export default function Events() {
     </AdminLayout>
   );
 }
+// función auxiliar para formatear fechas en el frontend, se adapta para manejar tanto startDate como date (en caso de eventos antiguos que no tengan startDate)
+function formatDate(dateStr: string) {
+  const [year, month, day] = dateStr.split("-");
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  );
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).toUpperCase();
+}
 
 function EventRow({ event, canEdit, onEdit, onDelete, t }: { event: Event; canEdit: boolean; onEdit: (e: Event) => void; onDelete: (e: Event) => void; t: any }) {
   return (
@@ -244,11 +379,16 @@ function EventRow({ event, canEdit, onEdit, onDelete, t }: { event: Event; canEd
         }
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 2 }}>{event.name}</div>
+          
           <div style={{ fontSize: 11, color: t.textMuted }}>
-            {new Date(event.date).toLocaleDateString("es-AR", { year: "numeric", month: "long", day: "numeric" })}{event.time && ` · ${event.time}`}
-            {event.venue && ` · ${event.venue}`}{event.city && `, ${event.city}`}
+            {formatDate(event.startDate || event.date)}
+            {(event.startTime || event.time) &&
+              ` · ${event.startTime || event.time}`}
+
+            {event.venue && ` · ${event.venue}`}
+            {event.city && `, ${event.city}`}
           </div>
-          <div style={{ fontSize: 10, color: t.textFaint, marginTop: 2 }}>{event.lineup.join(" / ")}</div>
+                    <div style={{ fontSize: 10, color: t.textFaint, marginTop: 2 }}>{event.lineup.join(" / ")}</div>
         </div>
       </div>
       {canEdit && (

@@ -30,6 +30,10 @@ export interface Event {
   slug: string;
   date: string;
   time: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
   venue: string;
   city: string;
   flyer: string;

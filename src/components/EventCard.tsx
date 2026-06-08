@@ -7,11 +7,36 @@ interface EventCardProps {
 }
 
 export const EventCard = ({ event, index = 0 }: EventCardProps) => {
-  const formattedDate = new Date(event.date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const formatDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split("-");
+
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day)
+    );
+
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const formattedDate = formatDate(
+    event.startDate || event.date
+  );
+
+
+  const isEventEnded = () => {
+      if (event.endDate && event.endTime) {
+        return new Date(
+          `${event.endDate}T${event.endTime}`
+        ) < new Date();
+      }
+
+      return event.isPast;
+  };
   return (
     <Link 
       to={`/events/${event.slug}`}
@@ -25,13 +50,14 @@ export const EventCard = ({ event, index = 0 }: EventCardProps) => {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
         />
-        {event.isPast && (
+        {isEventEnded() && (
           <div className="absolute top-4 left-4">
             <span className="bg-muted/80 backdrop-blur-sm text-muted-foreground text-xs uppercase tracking-widest px-3 py-1">
               Past Event
             </span>
           </div>
         )}
+
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
           <span className="text-lg font-display font-bold text-foreground">
             View Details →
@@ -40,7 +66,9 @@ export const EventCard = ({ event, index = 0 }: EventCardProps) => {
       </div>
       <div className="mt-4">
         <span className="text-xs uppercase tracking-widest text-primary block mb-1">
-          {formattedDate} {event.time && ` · ${event.time}`}
+          {formattedDate}
+          {(event.startTime || event.time) &&
+            ` · ${event.startTime || event.time}`}
         </span>
         <h3 className="text-display-sm font-display tracking-tight text-foreground">
           {event.name}

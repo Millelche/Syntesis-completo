@@ -8,15 +8,45 @@ const Events = () => {
   const events = stored_events ? JSON.parse(stored_events) : default_events;
 
   // ← CAMBIO: se agrega .sort() para ordenar por fecha ascendente
-  const upcomingEvents = events
-    .filter((e) => !e.isPast)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // función para determinar si un evento ya pasó, considerando fecha y hora de término
+  const isEventEnded = (event: any) => {
+    if (event.endDate && event.endTime) {
+      return new Date(
+        `${event.endDate}T${event.endTime}`
+      ) < new Date();
+    }
 
-  const pastEvents = events.filter((e) => e.isPast);
+    return event.isPast;
+  };
+
+  const upcomingEvents = events
+    .filter((e) => !isEventEnded(e))
+    .sort((a, b) =>
+      new Date(a.startDate || a.date).getTime() -
+      new Date(b.startDate || b.date).getTime()
+    );
+
+  const pastEvents = events.filter((e) => isEventEnded(e));
   const featuredEvent = upcomingEvents[0];
 
   // ← NUEVO: el resto de upcoming después del featured
   const nextEvents = upcomingEvents.slice(1);
+  const formatDate = (dateStr: string) => {
+  const [year, month, day] = dateStr.split("-");
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  );
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).toUpperCase();
+};
 
   return (
     <Layout theme="events">
@@ -40,15 +70,33 @@ const Events = () => {
                 </div>
 
                 <div className="flex flex-col justify-center opacity-0 animate-fade-up stagger-2">
-                  <span className="text-sm uppercase tracking-widest text-muted-foreground mb-2">
-                    {new Date(featuredEvent.date).toLocaleDateString("en-US", {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                    {featuredEvent.time && ` · ${featuredEvent.time}hs`}
-                  </span>
+
+                  <div className="text-sm uppercase tracking-widest text-muted-foreground mb-4">
+
+                  <div>
+                    {formatDate(featuredEvent.startDate || featuredEvent.date)}
+                  </div>
+
+                  {(featuredEvent.startTime || featuredEvent.time) && (
+                    <div className="mt-1">
+                      {featuredEvent.startTime || featuredEvent.time} HS
+                    </div>
+                  )}
+
+                  {featuredEvent.endDate &&
+                    featuredEvent.endDate !== featuredEvent.startDate && (
+                      <>
+                        <div className="mt-3">
+                          {formatDate(featuredEvent.endDate)}
+                        </div>
+
+                        <div className="mt-1">
+                          {featuredEvent.endTime} HS
+                        </div>
+                      </>
+                  )}
+
+                </div>
                   <h1 className="text-display-lg md:text-display-xl font-display mb-4">
                     {featuredEvent.name}
                   </h1>
