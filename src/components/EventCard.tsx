@@ -65,17 +65,34 @@ export const EventCard = ({ event, index = 0 }: EventCardProps) => {
         </div>
       </div>
       <div className="mt-4">
-        <span className="text-xs uppercase tracking-widest text-primary block mb-1">
-          {formattedDate}
-          {(event.startTime || event.time) &&
-            ` · ${event.startTime || event.time}`}
+       <span className="text-xs uppercase tracking-widest text-primary block mb-1">
+          <div>
+            {formattedDate}
+          </div>
+
+          {!isEventEnded() && (
+            <>
+              {event.startTime && event.endTime ? (
+                <div className="mt-1">
+                  {event.startTime} → {event.endTime} HS
+                </div>
+              ) : (
+                event.startTime && (
+                  <div className="mt-1">
+                    {event.startTime} HS
+                  </div>
+                )
+              )}
+            </>
+          )}
         </span>
+
         <h3 className="text-display-sm font-display tracking-tight text-foreground">
           {event.name}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
-  {event.venue}, {event.city}
-</p>
+          {event.venue}, {event.city}
+        </p>
       </div>
     </Link>
   );

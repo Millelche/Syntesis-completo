@@ -72,7 +72,7 @@ const AgencyDates = () => {
               NEXT DATES
             </h1>
             <p className="text-lg text-muted-foreground opacity-0 animate-fade-up stagger-1">
-              Explora las próximas presentaciones de nuestros artistas.
+              Explore upcoming performances from our artists.
             </p>
           </div>
           
@@ -97,7 +97,15 @@ const AgencyDates = () => {
                       <TableRow key={index} className="border-border/50 hover:bg-secondary/50">
                         <TableCell className="font-medium">
                           {/* se correge para que no reste un dìa */}
-                          {formatDate(date.startDate || date.date)}
+                          <div>
+                            {formatDate(date.startDate || date.date)}
+                          </div>
+
+                          {date.startTime && date.endTime && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {date.startTime} → {date.endTime} HS
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                             <span className="font-display">

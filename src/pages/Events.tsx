@@ -73,30 +73,16 @@ const Events = () => {
 
                   <div className="text-sm uppercase tracking-widest text-muted-foreground mb-4">
 
-                  <div>
-                    {formatDate(featuredEvent.startDate || featuredEvent.date)}
-                  </div>
-
-                  {(featuredEvent.startTime || featuredEvent.time) && (
-                    <div className="mt-1">
-                      {featuredEvent.startTime || featuredEvent.time} HS
+                    <div>
+                      {formatDate(featuredEvent.startDate || featuredEvent.date)}
                     </div>
-                  )}
 
-                  {featuredEvent.endDate &&
-                    featuredEvent.endDate !== featuredEvent.startDate && (
-                      <>
-                        <div className="mt-3">
-                          {formatDate(featuredEvent.endDate)}
-                        </div>
-
-                        <div className="mt-1">
-                          {featuredEvent.endTime} HS
-                        </div>
-                      </>
-                  )}
-
-                </div>
+                    {featuredEvent.startTime && featuredEvent.endTime && (
+                      <div className="mt-1">
+                        {featuredEvent.startTime} → {featuredEvent.endTime} HS
+                      </div>
+                    )}
+                  </div>
                   <h1 className="text-display-lg md:text-display-xl font-display mb-4">
                     {featuredEvent.name}
                   </h1>
