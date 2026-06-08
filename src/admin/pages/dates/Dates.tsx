@@ -45,13 +45,34 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
  *  - image?: imagen/flyer de la fecha en base64 WebP
  */
 export interface BookingDateV2 extends Omit<BookingDate, "artist" | "artistSlug"> {
-  artists: string[];   // Múltiples artistas
-  image?: string;      // Flyer/imagen en base64 WebP (opcional)
+  artists: string[];
+  image?: string;
+
+  startDate?: string;
+  startTime?: string;
+
+  endDate?: string;
+  endTime?: string;
 }
 
+// Valor inicial vacío para el formulario de creación/edición se agrega inicio y fin separados
 const EMPTY: BookingDateV2 = {
-  id: "", date: "", artists: [], venue: "", promoter: "Syntesis",
-  country: "", city: "", ticketUrl: "", image: "",
+  id: "",
+  date: "",
+
+  startDate: "",
+  startTime: "",
+
+  endDate: "",
+  endTime: "",
+
+  artists: [],
+  venue: "",
+  promoter: "Syntesis",
+  country: "",
+  city: "",
+  ticketUrl: "",
+  image: "",
 };
 
 export default function Dates() {
@@ -107,16 +128,49 @@ export default function Dates() {
     finally { setConv(false); }
   }
 
-  function handleSave() {
-    if (form.artists.length === 0 || !form.date || !form.venue) return;
-    const data: BookingDateV2 = { ...form };
+ function handleSave() {
+    if (
+      form.artists.length === 0 ||
+      !form.startDate ||
+      !form.venue
+    ) return;
+
+    const data: BookingDateV2 = {
+      ...form,
+
+      date: form.startDate || form.date,
+    };
+
     if (modal === "create") {
-      persist([...dates, {...data, id:Date.now().toString()}]);
-      logAction(`Creó fecha: ${form.artists.join(" & ")} en ${form.venue}`, "fechas");
+      persist([
+        ...dates,
+        {
+          ...data,
+          id: Date.now().toString()
+        }
+      ]);
+
+      logAction(
+        `Creó fecha: ${form.artists.join(" & ")} en ${form.venue}`,
+        "fechas"
+      );
+
     } else if (modal === "edit" && selected) {
-      persist(dates.map(d => d.id===selected.id ? {...data} : d));
-      logAction(`Editó fecha: ${form.artists.join(" & ")} en ${form.venue}`, "fechas");
+
+      persist(
+        dates.map(d =>
+          d.id === selected.id
+            ? { ...data }
+            : d
+        )
+      );
+
+      logAction(
+        `Editó fecha: ${form.artists.join(" & ")} en ${form.venue}`,
+        "fechas"
+      );
     }
+
     setModal(null);
   }
 
@@ -197,8 +251,72 @@ export default function Dates() {
               </div>
 
               {/* Fecha */}
-              <div><label style={lbl}>Fecha *</label><input type="date" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
+              {/* Fecha y Hora Inicio */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+                <div>
+                  <label style={lbl}>Fecha Inicio *</label>
+                  <input
+                    type="date"
+                    style={inp}
+                    value={form.startDate || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        startDate: e.target.value,
+                        date: e.target.value
+                      }))
+                    }
+                  />
+                </div>
 
+                <div>
+                  <label style={lbl}>Hora Inicio *</label>
+                  <input
+                    type="time"
+                    style={inp}
+                    value={form.startTime || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        startTime: e.target.value
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Fecha y Hora Término */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+                <div>
+                  <label style={lbl}>Fecha Término *</label>
+                  <input
+                    type="date"
+                    style={inp}
+                    value={form.endDate || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        endDate: e.target.value
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={lbl}>Hora Término *</label>
+                  <input
+                    type="time"
+                    style={inp}
+                    value={form.endTime || ""}
+                    onChange={e =>
+                      setForm(f => ({
+                        ...f,
+                        endTime: e.target.value
+                      }))
+                    }
+                  />
+                </div>
+              </div> 
               {/* Venue + Ciudad */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
                 <div><label style={lbl}>Venue *</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
@@ -214,14 +332,14 @@ export default function Dates() {
               {/* Link tickets */}
               <div><label style={lbl}>Link de tickets (opcional)</label><input style={inp} value={form.ticketUrl??""} onChange={e=>setForm(f=>({...f,ticketUrl:e.target.value}))} placeholder="https://..."/></div>
 
-              {/* Imagen/flyer con conversión WebP */}
+              {/* Imagen/flyer con conversión WebP 
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Imagen / Flyer (opcional)</label>
                 <input type="file" accept="image/*" onChange={handleImage} style={{fontSize:12,color:t.textMuted,cursor:"pointer"}}/>
                 {converting && <div style={{fontSize:11,color:t.textMuted,marginTop:8}}>⏳ Convirtiendo a WebP para optimización web...</div>}
                 {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Imagen optimizada para web (WebP)</div>}
                 {form.image && !converting && <img src={form.image} alt="Preview" style={{marginTop:10,height:90,border:`1px solid ${t.border}`}}/>}
-              </div>
+              </div>*/}
 
               {/* Acciones */}
               <div style={{display:"flex",gap:8,marginTop:"0.5rem"}}>
