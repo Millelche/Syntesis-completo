@@ -7,6 +7,7 @@ const EventDetail = () => {
   const events = stored_events ? JSON.parse(stored_events) : default_events;
   const { slug } = useParams<{ slug: string }>();
   const event = events.find(e => e.slug === slug);
+  
 
   if (!event) {
     return (
@@ -23,12 +24,38 @@ const EventDetail = () => {
     );
   }
 
-  const formattedDate = new Date(event.date).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  
+
+ const formatDate = (dateStr: string) => {
+  const [year, month, day] = dateStr.split("-");
+
+    const date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day)
+    );
+
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).toUpperCase();
+  };
+
+  const formattedDate = formatDate(
+    event.startDate || event.date
+  );
+
+  const isEventEnded = () => {
+    if (event.endDate && event.endTime) {
+      return new Date(
+        `${event.endDate}T${event.endTime}`
+      ) < new Date();
+    }
+
+    return event.isPast;
+  };
 
   return (
     <Layout theme="events">
@@ -55,16 +82,32 @@ const EventDetail = () => {
             
             {/* Event Info */}
             <div className="opacity-0 animate-fade-up stagger-2">
-              {event.isPast && (
+              {isEventEnded() && (
                 <span className="inline-block bg-muted text-muted-foreground text-xs uppercase tracking-widest px-3 py-1 mb-4">
                   Past Event
                 </span>
               )}
               
-              <span className="text-sm uppercase tracking-widest text-primary block mb-2">
-                {formattedDate}
-              </span>
-              
+              <div className="text-sm uppercase tracking-widest text-primary block mb-4">
+                <div>{formattedDate}</div>
+
+                {!isEventEnded() && (
+                  <>
+                    {event.startTime && event.endTime ? (
+                      <div className="mt-1">
+                        {event.startTime} → {event.endTime} HS
+                      </div>
+                    ) : (
+                      (event.startTime || event.time) && (
+                        <div className="mt-1">
+                          {event.startTime || event.time} HS
+                        </div>
+                      )
+                    )}
+                  </>
+                )}
+              </div>
+                            
               <h1 className="text-display-lg md:text-display-xl font-display mb-6">
                 {event.name}
               </h1>
@@ -120,7 +163,7 @@ const EventDetail = () => {
               )}
               
               {/* Ticket Links (only for future events) */}
-              {!event.isPast && event.ticketLinks && event.ticketLinks.length > 0 && (
+              {!isEventEnded() && event.ticketLinks && event.ticketLinks.length > 0 && (
                 <div className="mb-8">
                   <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">
                     Get Tickets
@@ -142,7 +185,7 @@ const EventDetail = () => {
               )}
               
               {/* Past Event Media Links */}
-              {event.isPast && (
+              {isEventEnded() && (
                 <div className="space-y-6">
                   <div>
                     <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">

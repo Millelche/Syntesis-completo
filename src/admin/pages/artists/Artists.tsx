@@ -1,6 +1,7 @@
 /**
- * Artists.tsx — v3
+ * Artists.tsx — v4
  * CRUD de artistas con Supabase como backend.
+ * Merge: Supabase (master) + placeholder imagen, orden visual, links editables, validación (colegas)
  */
 import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
@@ -31,7 +32,33 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
   });
 }
 
-const EMPTY: Artist = { id:"", name:"", slug:"", image:"", bio:"", genre:"", performances:[], labels:[], location:"", nationality:"", representation:"", socials:{} };
+function generatePlaceholderImage(name: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800; canvas.height = 800;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 800, 800);
+  ctx.fillStyle = "#000000";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const words = name.toUpperCase().split(" ");
+  const fontSize = words.some(w => w.length > 8) ? 72 : 88;
+  ctx.font = `700 ${fontSize}px sans-serif`;
+  if (words.length === 1) {
+    ctx.fillText(words[0], 400, 400);
+  } else {
+    const mid = Math.ceil(words.length / 2);
+    ctx.fillText(words.slice(0, mid).join(" "), 400, 340);
+    ctx.fillText(words.slice(mid).join(" "), 400, 460);
+  }
+  return canvas.toDataURL("image/webp", 0.9);
+}
+
+const EMPTY: Artist = {
+  id: "", name: "", slug: "", image: "", bio: "", genre: "",
+  performances: [], labels: [], location: "", nationality: "",
+  representation: "", socials: [], order: 0
+};
 
 export default function Artists() {
   const { can, currentUser, logAction, theme } = useAdmin();
@@ -48,11 +75,11 @@ export default function Artists() {
   const [form, setForm]         = useState<Artist>({...EMPTY});
   const [converting, setConv]   = useState(false);
   const [converted, setDone]    = useState(false);
+  const [errors, setErrors]     = useState<string[]>([]);
 
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
 
-  // ── Carga inicial desde Supabase ──────────────────────────────────────────
   useEffect(() => {
     async function load() {
       const { data, error } = await supabase.from("artists").select("*").order("sort_order", { ascending: true });
@@ -71,7 +98,8 @@ export default function Artists() {
           location: row.location ?? "",
           nationality: row.nationality ?? "",
           representation: row.representation ?? "",
-          socials: row.socials ?? {},
+          socials: Array.isArray(row.socials) ? row.socials : [],
+          order: row.sort_order ?? 0,
         })));
       }
       setLoading(false);
@@ -79,8 +107,12 @@ export default function Artists() {
     load();
   }, []);
 
-  function openCreate() { setForm({...EMPTY}); setDone(false); setModal("create"); }
-  function openEdit(a: Artist) { setSelected(a); setForm({...a, performances:[...a.performances], labels:[...a.labels], socials:{...a.socials}}); setDone(false); setModal("edit"); }
+  function openCreate() { setForm({...EMPTY}); setErrors([]); setDone(false); setModal("create"); }
+  function openEdit(a: Artist) {
+    setSelected(a);
+    setForm({ ...a, performances:[...a.performances], labels:[...a.labels], socials: Array.isArray(a.socials) ? [...a.socials] : [] });
+    setErrors([]); setDone(false); setModal("edit");
+  }
   function openDelete(a: Artist) { setSelected(a); setModal("delete"); }
 
   async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -92,13 +124,19 @@ export default function Artists() {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) return;
+    const errs: string[] = [];
+    if (!form.name.trim()) errs.push("El nombre es obligatorio.");
+    if (!form.genre.trim()) errs.push("El género es obligatorio.");
+    if (errs.length > 0) { setErrors(errs); return; }
+    setErrors([]);
+
     const slug = form.name.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
+    const image = form.image || generatePlaceholderImage(form.name);
     const row = {
       id: modal === "create" ? Date.now().toString() : selected!.id,
       name: form.name,
       slug,
-      image: form.image,
+      image,
       bio: form.bio,
       genre: form.genre,
       performances: form.performances,
@@ -107,17 +145,17 @@ export default function Artists() {
       nationality: form.nationality,
       representation: form.representation,
       socials: form.socials,
-      sort_order: modal === "create" ? artists.length : undefined,
+      sort_order: form.order ?? 0,
     };
     if (modal === "create") {
       const { error } = await supabase.from("artists").insert(row);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setArtists(prev => [...prev, {...form, id: row.id, slug}]);
+      setArtists(prev => [...prev, {...form, id: row.id, slug, image}]);
       logAction(`Creó artista "${form.name}"`, "artistas");
     } else if (modal === "edit" && selected) {
-      const { error } = await supabase.from("artists").update({...row, sort_order: undefined}).eq("id", selected.id);
+      const { error } = await supabase.from("artists").update(row).eq("id", selected.id);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setArtists(prev => prev.map(a => a.id === selected.id ? {...form, slug} : a));
+      setArtists(prev => prev.map(a => a.id === selected.id ? {...form, slug, image} : a));
       logAction(`Editó artista "${form.name}"`, "artistas");
     }
     setModal(null);
@@ -146,7 +184,7 @@ export default function Artists() {
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))",gap:"1rem"}}>
-          {artists.map(a => (
+          {[...artists].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).map(a => (
             <div key={a.id} style={{backgroundColor:t.bgCard,border:`1px solid ${t.border}`,overflow:"hidden"}}>
               <div style={{height:180,backgroundColor:t.bg,overflow:"hidden"}}>
                 {a.image
@@ -156,6 +194,7 @@ export default function Artists() {
               </div>
               <div style={{padding:"1rem"}}>
                 <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{a.name}</div>
+                {a.order != null && a.order > 0 && <div style={{fontSize:9,letterSpacing:"0.12em",color:t.textFaint,marginBottom:4}}>#{a.order}</div>}
                 <div style={{fontSize:10,color:t.textMuted,marginBottom:2}}>{a.genre}</div>
                 <div style={{fontSize:10,color:t.textFaint,marginBottom:canEdit?"0.75rem":0}}>{a.location}</div>
                 {canEdit && (
@@ -181,17 +220,26 @@ export default function Artists() {
                 <div><label style={lbl}>Location</label><input style={inp} value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="Ej: Buenos Aires, Argentina"/></div>
                 <div><label style={lbl}>Representation</label><input style={inp} value={form.representation} onChange={e=>setForm(f=>({...f,representation:e.target.value}))} placeholder="Ej: Worldwide"/></div>
                 <div><label style={lbl}>Nationality</label><input style={inp} value={form.nationality} onChange={e=>setForm(f=>({...f,nationality:e.target.value}))} placeholder="Ej: Argentina"/></div>
+                <div>
+                  <label style={lbl}>Orden de visualización</label>
+                  <input type="number" min={1} style={inp} value={form.order ?? 0} onChange={e=>setForm(f=>({...f,order:Number(e.target.value)}))} placeholder="1"/>
+                </div>
                 <div><label style={lbl}>Performances (separar con coma)</label><input style={inp} value={form.performances.join(", ")} onChange={e=>setForm(f=>({...f,performances:e.target.value.split(",").map(s=>s.trim()).filter(Boolean)}))} placeholder="Ej: DJ SET, B2B"/></div>
               </div>
               <div><label style={lbl}>Labels (separar con coma)</label><input style={inp} value={form.labels.join(", ")} onChange={e=>setForm(f=>({...f,labels:e.target.value.split(",").map(s=>s.trim()).filter(Boolean)}))} placeholder="Ej: ROOM, Wangan Club"/></div>
               <div><label style={lbl}>Biografía</label><textarea style={{...inp,minHeight:100,resize:"vertical",lineHeight:1.6}} value={form.bio} onChange={e=>setForm(f=>({...f,bio:e.target.value}))}/></div>
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
-                <div style={{fontSize:9,letterSpacing:"0.18em",color:t.textMuted,marginBottom:"0.75rem",textTransform:"uppercase"}}>Links / Redes Sociales</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.75rem"}}>
-                  {(["soundcloud","spotify","instagram","ra","bandcamp"] as const).map(s => (
-                    <div key={s}><label style={{...lbl,textTransform:"uppercase"}}>{s}</label><input style={inp} value={form.socials[s]??""} onChange={e=>setForm(f=>({...f,socials:{...f.socials,[s]:e.target.value}}))} placeholder="https://"/></div>
-                  ))}
-                </div>
+                <label style={lbl}>Links (máx. 10)</label>
+                {(form.socials as {name:string;url:string}[]).map((link, i) => (
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 2fr auto",gap:"0.5rem",marginBottom:"0.5rem"}}>
+                    <input style={inp} value={link.name} onChange={e=>{const u=[...form.socials as {name:string;url:string}[]];u[i]={...u[i],name:e.target.value.toUpperCase()};setForm(f=>({...f,socials:u}));}} placeholder="SOUNDCLOUD"/>
+                    <input style={inp} value={link.url} onChange={e=>{const u=[...form.socials as {name:string;url:string}[]];u[i]={...u[i],url:e.target.value};setForm(f=>({...f,socials:u}));}} placeholder="https://"/>
+                    <button onClick={()=>{const u=(form.socials as {name:string;url:string}[]).filter((_,j)=>j!==i);setForm(f=>({...f,socials:u}));}} style={{background:"none",border:`1px solid ${t.dangerBorder}`,color:t.danger,padding:"0 10px",cursor:"pointer",fontSize:12}}>✕</button>
+                  </div>
+                ))}
+                {(form.socials as {name:string;url:string}[]).length < 10 && (
+                  <button onClick={()=>setForm(f=>({...f,socials:[...f.socials as {name:string;url:string}[],{name:"",url:""}]}))} style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:t.textMuted,background:"none",border:`1px solid ${t.border}`,padding:"6px 12px",cursor:"pointer",marginTop:4}}>+ Agregar link</button>
+                )}
               </div>
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Foto del artista</label>
@@ -200,6 +248,11 @@ export default function Artists() {
                 {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Imagen optimizada para web (WebP)</div>}
                 {form.image && !converting && <img src={form.image} alt="Preview" style={{marginTop:10,width:90,height:90,objectFit:"cover",border:`1px solid ${t.border}`}}/>}
               </div>
+              {errors.length > 0 && (
+                <div style={{backgroundColor:t.dangerBg,border:`1px solid ${t.dangerBorder}`,padding:"10px 14px"}}>
+                  {errors.map((err,i) => <div key={i} style={{fontSize:11,color:t.danger,lineHeight:1.8}}>{err}</div>)}
+                </div>
+              )}
               <div style={{display:"flex",gap:8,marginTop:"0.75rem"}}>
                 <button onClick={handleSave} style={{flex:1,backgroundColor:t.accent,color:t.accentText,padding:"10px",fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",border:"none",cursor:"pointer"}}>{modal==="create"?"Crear artista":"Guardar cambios"}</button>
                 <button onClick={()=>setModal(null)} style={{flex:1,backgroundColor:"transparent",color:t.textMuted,padding:"10px",fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",border:`1px solid ${t.border}`,cursor:"pointer"}}>Cancelar</button>

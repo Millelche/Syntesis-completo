@@ -1,6 +1,7 @@
 /**
- * Events.tsx — v3
+ * Events.tsx — v4
  * CRUD de eventos con Supabase como backend.
+ * Merge: Supabase (master) + startDate/endDate, placeholder, validación, fix tickets (colegas)
  */
 import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
@@ -30,7 +31,43 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
   });
 }
 
-const EMPTY: Event = { id:"", name:"", slug:"", date:"", venue:"", city:"", flyer:"", description:"", lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:"" };
+function generatePlaceholderImage(name: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800; canvas.height = 800;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, 800, 800);
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const words = name.toUpperCase().split(" ");
+  const fontSize = words.some(w => w.length > 8) ? 72 : 88;
+  ctx.font = `700 ${fontSize}px sans-serif`;
+  if (words.length === 1) {
+    ctx.fillText(words[0], 400, 400);
+  } else {
+    const mid = Math.ceil(words.length / 2);
+    ctx.fillText(words.slice(0, mid).join(" "), 400, 340);
+    ctx.fillText(words.slice(mid).join(" "), 400, 460);
+  }
+  return canvas.toDataURL("image/webp", 0.9);
+}
+
+function formatDate(dateStr: string) {
+  const [year, month, day] = dateStr.split("-");
+  return new Date(Number(year), Number(month) - 1, Number(day))
+    .toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric" })
+    .toUpperCase();
+}
+
+const EMPTY: Event = {
+  id:"", name:"", slug:"",
+  date:"", time:"",
+  startDate:"", startTime:"",
+  endDate:"", endTime:"",
+  venue:"", city:"", flyer:"", description:"",
+  lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:""
+};
 
 export default function Events() {
   const { can, currentUser, logAction, theme } = useAdmin();
@@ -40,21 +77,21 @@ export default function Events() {
   if (!hasView) return <Navigate to="/admin/dashboard" replace />;
   const canEdit = currentUser?.isSuperAdmin || can("editor_eventos");
 
-  const [events, setEvents]     = useState<Event[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [modal, setModal]       = useState<null|"create"|"edit"|"delete">(null);
-  const [selected, setSelected] = useState<Event|null>(null);
-  const [form, setForm]         = useState<Event>({...EMPTY});
-  const [lineupText, setLineupText]     = useState("");
+  const [events, setEvents]         = useState<Event[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [modal, setModal]           = useState<null|"create"|"edit"|"delete">(null);
+  const [selected, setSelected]     = useState<Event|null>(null);
+  const [form, setForm]             = useState<Event>({...EMPTY});
+  const [lineupText, setLineupText] = useState("");
   const [setTimesText, setSetTimesText] = useState("");
-  const [ticketsText, setTicketsText]   = useState("");
-  const [converting, setConv]   = useState(false);
-  const [converted, setDone]    = useState(false);
+  const [tickets, setTickets]       = useState<{name:string;url:string}[]>([{name:"",url:""}]);
+  const [converting, setConv]       = useState(false);
+  const [converted, setDone]        = useState(false);
+  const [errors, setErrors]         = useState<string[]>([]);
 
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
 
-  // ── Carga inicial desde Supabase ──────────────────────────────────────────
   useEffect(() => {
     async function load() {
       const { data, error } = await supabase.from("events").select("*").order("date", { ascending: false });
@@ -65,7 +102,12 @@ export default function Events() {
           id: row.id,
           name: row.name,
           slug: row.slug,
-          date: row.date,
+          date: row.date ?? "",
+          time: row.time ?? "",
+          startDate: row.start_date ?? row.date ?? "",
+          startTime: row.start_time ?? "",
+          endDate: row.end_date ?? "",
+          endTime: row.end_time ?? "",
           venue: row.venue ?? "",
           city: row.city ?? "",
           flyer: row.flyer ?? "",
@@ -82,13 +124,13 @@ export default function Events() {
     load();
   }, []);
 
-  function openCreate() { setForm({...EMPTY}); setLineupText(""); setSetTimesText(""); setTicketsText(""); setDone(false); setModal("create"); }
+  function openCreate() { setForm({...EMPTY}); setErrors([]); setLineupText(""); setSetTimesText(""); setTickets([{name:"",url:""}]); setDone(false); setModal("create"); }
   function openEdit(e: Event) {
     setSelected(e); setForm({...e});
     setLineupText(e.lineup.join("\n"));
     setSetTimesText((e.setTimes??[]).map(s=>`${s.artist}|${s.time}`).join("\n"));
-    setTicketsText((e.ticketLinks??[]).map(t=>`${t.name}|${t.url}`).join("\n"));
-    setDone(false); setModal("edit");
+    setTickets((e.ticketLinks??[]).length > 0 ? e.ticketLinks! : [{name:"",url:""}]);
+    setErrors([]); setDone(false); setModal("edit");
   }
   function openDelete(e: Event) { setSelected(e); setModal("delete"); }
 
@@ -102,24 +144,39 @@ export default function Events() {
 
   function parseLines(text: string) { return text.split("\n").map(s=>s.trim()).filter(Boolean); }
   function parseSetTimes(text: string) { return parseLines(text).map(line=>{ const [artist,time]=line.split("|").map(s=>s.trim()); return {artist:artist??"",time:time??""}; }); }
-  function parseTickets(text: string) { return parseLines(text).map(line=>{ const [name,url]=line.split("|").map(s=>s.trim()); return {name:name??"",url:url??""}; }); }
 
   async function handleSave() {
-    if (!form.name.trim()||!form.date) return;
-    if (form.date < "2024-09-01") { alert("No se permiten eventos anteriores a septiembre de 2024."); return; }
+    const errs: string[] = [];
+    if (!form.name.trim()) errs.push("El nombre del evento es obligatorio.");
+    if (!form.startDate) errs.push("La fecha de inicio es obligatoria.");
+    if (!form.startTime) errs.push("La hora de inicio es obligatoria.");
+    if (!form.endDate) errs.push("La fecha de término es obligatoria.");
+    if (!form.endTime) errs.push("La hora de término es obligatoria.");
+    if (form.startDate && form.startDate < "2024-09-01") errs.push("No se permiten eventos anteriores a septiembre de 2024.");
+    if (errs.length > 0) { setErrors(errs); return; }
+    setErrors([]);
+
     const slug = form.name.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
+    const flyer = form.flyer || generatePlaceholderImage(form.name);
     const lineup = parseLines(lineupText);
     const setTimes = parseSetTimes(setTimesText);
-    const ticketLinks = parseTickets(ticketsText);
-    const isPast = new Date(form.date) < new Date();
+    const ticketLinks = tickets.filter(t => t.name || t.url);
+    const endDateTime = new Date(`${form.endDate}T${form.endTime||"23:59"}`);
+    const isPast = endDateTime < new Date();
+
     const row = {
       id: modal === "create" ? Date.now().toString() : selected!.id,
       name: form.name,
       slug,
-      date: form.date,
+      date: form.startDate,
+      time: form.startTime,
+      start_date: form.startDate,
+      start_time: form.startTime,
+      end_date: form.endDate,
+      end_time: form.endTime,
       venue: form.venue,
       city: form.city,
-      flyer: form.flyer,
+      flyer,
       description: form.description,
       lineup,
       set_times: setTimes,
@@ -127,15 +184,16 @@ export default function Events() {
       recorded_sets: form.recordedSets,
       is_past: isPast,
     };
+
     if (modal === "create") {
       const { error } = await supabase.from("events").insert(row);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setEvents(prev => [{...form, id:row.id, slug, lineup, setTimes, ticketLinks, isPast}, ...prev]);
+      setEvents(prev => [{...form, id:row.id, slug, flyer, lineup, setTimes, ticketLinks, isPast, date:form.startDate}, ...prev]);
       logAction(`Creó evento "${form.name}"`, "eventos");
     } else if (modal === "edit" && selected) {
       const { error } = await supabase.from("events").update(row).eq("id", selected.id);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setEvents(prev => prev.map(e => e.id === selected.id ? {...form, id:selected.id, slug, lineup, setTimes, ticketLinks, isPast} : e));
+      setEvents(prev => prev.map(e => e.id === selected.id ? {...form, id:selected.id, slug, flyer, lineup, setTimes, ticketLinks, isPast, date:form.startDate} : e));
       logAction(`Editó evento "${form.name}"`, "eventos");
     }
     setModal(null);
@@ -150,8 +208,13 @@ export default function Events() {
     setModal(null);
   }
 
-  const upcoming = events.filter(e=>!e.isPast);
-  const past     = events.filter(e=>e.isPast);
+  const isEventEnded = (event: Event) => {
+    if (event.endDate && event.endTime) return new Date(`${event.endDate}T${event.endTime}`) < new Date();
+    return event.isPast;
+  };
+
+  const upcoming = events.filter(e => !isEventEnded(e));
+  const past     = events.filter(e => isEventEnded(e));
 
   if (loading) return <AdminLayout><div style={{padding:"2.5rem",color:t.textMuted,fontSize:13}}>Cargando eventos...</div></AdminLayout>;
 
@@ -187,16 +250,34 @@ export default function Events() {
             <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
               <div><label style={lbl}>Nombre del evento *</label><input style={inp} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ej: SYNTESIS 009"/></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
-                <div><label style={lbl}>Fecha *</label><input type="date" min="2024-09-01" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
-                <div><label style={lbl}>Venue</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
+                <div><label style={lbl}>Fecha Inicio *</label><input type="date" min="2024-09-01" style={inp} value={form.startDate||""} onChange={e=>setForm(f=>({...f,startDate:e.target.value,date:e.target.value}))}/></div>
+                <div><label style={lbl}>Hora Inicio *</label><input type="time" style={inp} value={form.startTime||""} onChange={e=>setForm(f=>({...f,startTime:e.target.value,time:e.target.value}))}/></div>
+                <div><label style={lbl}>Fecha Término *</label><input type="date" min="2024-09-01" style={inp} value={form.endDate||""} onChange={e=>setForm(f=>({...f,endDate:e.target.value}))}/></div>
+                <div><label style={lbl}>Hora Término *</label><input type="time" style={inp} value={form.endTime||""} onChange={e=>setForm(f=>({...f,endTime:e.target.value}))}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+                <div><label style={lbl}>Venue</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
                 <div><label style={lbl}>Ciudad</label><input style={inp} value={form.city} onChange={e=>setForm(f=>({...f,city:e.target.value}))} placeholder="Ej: Buenos Aires"/></div>
-                <div><label style={lbl}>Descripción</label><input style={inp} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div>
               </div>
+              <div><label style={lbl}>Descripción</label><input style={inp} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div>
               <div><label style={lbl}>Lineup (un artista por línea)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={lineupText} onChange={e=>setLineupText(e.target.value)} placeholder={"PAKARD\nBONDARÜK & SMT"}/></div>
-              <div><label style={lbl}>Set Times (Artista|HH:MM - HH:MM — una línea por artista)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={setTimesText} onChange={e=>setSetTimesText(e.target.value)} placeholder={"PAKARD|00:00 - 02:00\nBONDARÜK & SMT|02:00 - 04:00"}/></div>
-              <div><label style={lbl}>Links de tickets (Nombre|URL — una línea por link)</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.7}} value={ticketsText} onChange={e=>setTicketsText(e.target.value)} placeholder={"Bombo|https://...\nResident Advisor|https://..."}/></div>
+              <div><label style={lbl}>Set Times (Artista|HH:MM - HH:MM)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={setTimesText} onChange={e=>setSetTimesText(e.target.value)} placeholder={"PAKARD|00:00 - 02:00"}/></div>
+              <div>
+                <label style={lbl}>Links de tickets</label>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 28px",gap:"6px",marginBottom:6}}>
+                  <span style={{fontSize:9,letterSpacing:"0.12em",color:t.textMuted,textTransform:"uppercase"}}>Nombre</span>
+                  <span style={{fontSize:9,letterSpacing:"0.12em",color:t.textMuted,textTransform:"uppercase"}}>URL</span>
+                  <span/>
+                </div>
+                {tickets.map((ticket, i) => (
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 28px",gap:"6px",marginBottom:6}}>
+                    <input style={inp} placeholder="Ej: Bombo" value={ticket.name} onChange={e=>setTickets(prev=>prev.map((t,idx)=>idx===i?{...t,name:e.target.value}:t))}/>
+                    <input style={inp} placeholder="https://..." value={ticket.url} onChange={e=>setTickets(prev=>prev.map((t,idx)=>idx===i?{...t,url:e.target.value}:t))}/>
+                    <button type="button" onClick={()=>setTickets(prev=>prev.filter((_,idx)=>idx!==i))} style={{background:"none",border:`1px solid ${t.border}`,color:t.textMuted,cursor:"pointer",fontSize:13}}>✕</button>
+                  </div>
+                ))}
+                <button type="button" onClick={()=>setTickets(prev=>[...prev,{name:"",url:""}])} style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:t.textMuted,background:"none",border:`1px solid ${t.border}`,padding:"5px 12px",cursor:"pointer",marginTop:2}}>+ Agregar link</button>
+              </div>
               <div><label style={lbl}>Recorded Sets (URL Soundcloud)</label><input style={inp} value={form.recordedSets??""} onChange={e=>setForm(f=>({...f,recordedSets:e.target.value}))} placeholder="https://soundcloud.com/..."/></div>
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Flyer del evento</label>
@@ -205,6 +286,11 @@ export default function Events() {
                 {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Flyer optimizado para web (WebP)</div>}
                 {form.flyer && !converting && <img src={form.flyer} alt="Flyer" style={{marginTop:10,height:100,border:`1px solid ${t.border}`}}/>}
               </div>
+              {errors.length > 0 && (
+                <div style={{backgroundColor:t.dangerBg,border:`1px solid ${t.dangerBorder}`,padding:"10px 14px"}}>
+                  {errors.map((err,i) => <div key={i} style={{fontSize:11,color:t.danger,lineHeight:1.8}}>{err}</div>)}
+                </div>
+              )}
               <div style={{display:"flex",gap:8,marginTop:"0.75rem"}}>
                 <button onClick={handleSave} style={{flex:1,backgroundColor:t.accent,color:t.accentText,padding:"10px",fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",border:"none",cursor:"pointer"}}>{modal==="create"?"Crear evento":"Guardar cambios"}</button>
                 <button onClick={()=>setModal(null)} style={{flex:1,backgroundColor:"transparent",color:t.textMuted,padding:"10px",fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",border:`1px solid ${t.border}`,cursor:"pointer"}}>Cancelar</button>
@@ -241,7 +327,8 @@ function EventRow({event,canEdit,onEdit,onDelete,t}: {event:Event; canEdit:boole
         <div>
           <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{event.name}</div>
           <div style={{fontSize:11,color:t.textMuted}}>
-            {new Date(event.date).toLocaleDateString("es-AR",{year:"numeric",month:"long",day:"numeric"})}
+            {event.startDate ? event.startDate : event.date}
+            {(event.startTime||event.time) && ` · ${event.startTime||event.time}`}
             {event.venue&&` · ${event.venue}`}{event.city&&`, ${event.city}`}
           </div>
           <div style={{fontSize:10,color:t.textFaint,marginTop:2}}>{event.lineup.join(" / ")}</div>

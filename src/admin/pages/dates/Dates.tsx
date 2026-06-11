@@ -1,6 +1,7 @@
 /**
- * Dates.tsx — v3
+ * Dates.tsx — v4
  * CRUD de próximas fechas con Supabase como backend.
+ * Merge: Supabase (master) + startDate/endDate/time, validación (colegas)
  */
 import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
@@ -33,6 +34,10 @@ function convertToWebP(file: File, quality = 0.82): Promise<string> {
 export interface BookingDateV2 {
   id: string;
   date: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
   artists: string[];
   venue: string;
   promoter: string;
@@ -43,7 +48,10 @@ export interface BookingDateV2 {
 }
 
 const EMPTY: BookingDateV2 = {
-  id: "", date: "", artists: [], venue: "", promoter: "Syntesis",
+  id: "", date: "",
+  startDate: "", startTime: "",
+  endDate: "", endTime: "",
+  artists: [], venue: "", promoter: "Syntesis",
   country: "", city: "", ticketUrl: "", image: "",
 };
 
@@ -64,25 +72,27 @@ export default function Dates() {
   const [converting, setConv]     = useState(false);
   const [converted, setDone]      = useState(false);
   const [artistDropdown, setArtistDropdown] = useState(false);
+  const [errors, setErrors]       = useState<string[]>([]);
 
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
 
-  // ── Carga inicial ─────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
-      // Cargar artistas
       const { data: artistData } = await supabase.from("artists").select("*").order("sort_order");
       setArtists(artistData && artistData.length > 0 ? artistData : defaultArtists);
 
-      // Cargar fechas
       const { data, error } = await supabase.from("dates").select("*").order("date");
       if (error || !data || data.length === 0) {
         setDates([]);
       } else {
         setDates(data.map(row => ({
           id: row.id,
-          date: row.date,
+          date: row.date ?? "",
+          startDate: row.start_date ?? row.date ?? "",
+          startTime: row.start_time ?? "",
+          endDate: row.end_date ?? "",
+          endTime: row.end_time ?? "",
           artists: row.artists ?? [],
           venue: row.venue ?? "",
           promoter: row.promoter ?? "Syntesis",
@@ -97,16 +107,14 @@ export default function Dates() {
     load();
   }, []);
 
-  function openCreate() { setForm({...EMPTY}); setDone(false); setArtistDropdown(false); setModal("create"); }
-  function openEdit(d: BookingDateV2) { setSelected(d); setForm({...d, artists:[...d.artists]}); setDone(false); setArtistDropdown(false); setModal("edit"); }
+  function openCreate() { setForm({...EMPTY}); setErrors([]); setDone(false); setArtistDropdown(false); setModal("create"); }
+  function openEdit(d: BookingDateV2) { setSelected(d); setForm({...d, artists:[...d.artists]}); setErrors([]); setDone(false); setArtistDropdown(false); setModal("edit"); }
   function openDelete(d: BookingDateV2) { setSelected(d); setModal("delete"); }
 
   function toggleArtist(name: string) {
     setForm(f => ({
       ...f,
-      artists: f.artists.includes(name)
-        ? f.artists.filter(a => a !== name)
-        : [...f.artists, name],
+      artists: f.artists.includes(name) ? f.artists.filter(a => a !== name) : [...f.artists, name],
     }));
   }
 
@@ -119,11 +127,24 @@ export default function Dates() {
   }
 
   async function handleSave() {
-    if (form.artists.length === 0 || !form.date || !form.venue) return;
-    if (form.date < "2024-09-01") { alert("No se permiten fechas anteriores a septiembre de 2024."); return; }
+    const errs: string[] = [];
+    if (form.artists.length === 0) errs.push("Seleccioná al menos un artista.");
+    if (!form.startDate) errs.push("La fecha de inicio es obligatoria.");
+    if (!form.startTime) errs.push("La hora de inicio es obligatoria.");
+    if (!form.endDate) errs.push("La fecha de término es obligatoria.");
+    if (!form.endTime) errs.push("La hora de término es obligatoria.");
+    if (!form.venue.trim()) errs.push("El venue es obligatorio.");
+    if (form.startDate && form.startDate < "2024-09-01") errs.push("No se permiten fechas anteriores a septiembre de 2024.");
+    if (errs.length > 0) { setErrors(errs); return; }
+    setErrors([]);
+
     const row = {
       id: modal === "create" ? Date.now().toString() : selected!.id,
-      date: form.date,
+      date: form.startDate,
+      start_date: form.startDate,
+      start_time: form.startTime,
+      end_date: form.endDate,
+      end_time: form.endTime,
       artists: form.artists,
       venue: form.venue,
       promoter: form.promoter,
@@ -132,15 +153,16 @@ export default function Dates() {
       ticket_url: form.ticketUrl,
       image: form.image,
     };
+
     if (modal === "create") {
       const { error } = await supabase.from("dates").insert(row);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setDates(prev => [...prev, {...form, id: row.id}].sort((a,b) => a.date.localeCompare(b.date)));
+      setDates(prev => [...prev, {...form, id: row.id, date: form.startDate!}].sort((a,b) => a.date.localeCompare(b.date)));
       logAction(`Creó fecha: ${form.artists.join(" & ")} en ${form.venue}`, "fechas");
     } else if (modal === "edit" && selected) {
       const { error } = await supabase.from("dates").update(row).eq("id", selected.id);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setDates(prev => prev.map(d => d.id === selected.id ? {...form, id: selected.id} : d).sort((a,b) => a.date.localeCompare(b.date)));
+      setDates(prev => prev.map(d => d.id === selected.id ? {...form, id: selected.id, date: form.startDate!} : d).sort((a,b) => a.date.localeCompare(b.date)));
       logAction(`Editó fecha: ${form.artists.join(" & ")} en ${form.venue}`, "fechas");
     }
     setModal(null);
@@ -156,8 +178,8 @@ export default function Dates() {
   }
 
   const today    = new Date().toISOString().split("T")[0];
-  const upcoming = dates.filter(d => d.date >= today);
-  const past     = dates.filter(d => d.date < today);
+  const upcoming = dates.filter(d => (d.startDate || d.date) >= today);
+  const past     = dates.filter(d => (d.startDate || d.date) < today);
 
   if (loading) return <AdminLayout><div style={{padding:"2.5rem",color:t.textMuted,fontSize:13}}>Cargando fechas...</div></AdminLayout>;
 
@@ -211,10 +233,14 @@ export default function Dates() {
                     ))}
                   </div>
                 )}
-                {form.artists.length===0 && <div style={{fontSize:10,color:t.danger,marginTop:4}}>Seleccioná al menos un artista</div>}
               </div>
 
-              <div><label style={lbl}>Fecha *</label><input type="date" min="2024-09-01" style={inp} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
+                <div><label style={lbl}>Fecha Inicio *</label><input type="date" min="2024-09-01" style={inp} value={form.startDate||""} onChange={e=>setForm(f=>({...f,startDate:e.target.value,date:e.target.value}))}/></div>
+                <div><label style={lbl}>Hora Inicio *</label><input type="time" style={inp} value={form.startTime||""} onChange={e=>setForm(f=>({...f,startTime:e.target.value}))}/></div>
+                <div><label style={lbl}>Fecha Término *</label><input type="date" min="2024-09-01" style={inp} value={form.endDate||""} onChange={e=>setForm(f=>({...f,endDate:e.target.value}))}/></div>
+                <div><label style={lbl}>Hora Término *</label><input type="time" style={inp} value={form.endTime||""} onChange={e=>setForm(f=>({...f,endTime:e.target.value}))}/></div>
+              </div>
 
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
                 <div><label style={lbl}>Venue *</label><input style={inp} value={form.venue} onChange={e=>setForm(f=>({...f,venue:e.target.value}))} placeholder="Ej: Club de Pescadores"/></div>
@@ -235,6 +261,12 @@ export default function Dates() {
                 {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Imagen optimizada para web (WebP)</div>}
                 {form.image && !converting && <img src={form.image} alt="Preview" style={{marginTop:10,height:90,border:`1px solid ${t.border}`}}/>}
               </div>
+
+              {errors.length > 0 && (
+                <div style={{backgroundColor:t.dangerBg,border:`1px solid ${t.dangerBorder}`,padding:"10px 14px"}}>
+                  {errors.map((err,i) => <div key={i} style={{fontSize:11,color:t.danger,lineHeight:1.8}}>{err}</div>)}
+                </div>
+              )}
 
               <div style={{display:"flex",gap:8,marginTop:"0.5rem"}}>
                 <button onClick={handleSave} style={{flex:1,backgroundColor:t.accent,color:t.accentText,padding:"10px",fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",border:"none",cursor:"pointer"}}>{modal==="create"?"Crear fecha":"Guardar cambios"}</button>
@@ -264,6 +296,7 @@ export default function Dates() {
 }
 
 function DateRow({date,canEdit,onEdit,onDelete,t}: {date:BookingDateV2; canEdit:boolean; onEdit:(d:BookingDateV2)=>void; onDelete:(d:BookingDateV2)=>void; t:any}) {
+  const displayDate = date.startDate || date.date;
   return (
     <div style={{backgroundColor:t.bgCard,border:`1px solid ${t.border}`,padding:"1rem 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.5rem"}}>
       <div style={{display:"flex",alignItems:"center",gap:"1rem"}}>
@@ -273,7 +306,9 @@ function DateRow({date,canEdit,onEdit,onDelete,t}: {date:BookingDateV2; canEdit:
         }
         <div>
           <div style={{fontSize:10,color:t.textFaint,letterSpacing:"0.08em",marginBottom:3}}>
-            {new Date(date.date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
+            {new Date(displayDate+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
+            {date.startTime && ` · ${date.startTime}`}
+            {date.endDate && date.endTime && ` → ${date.endTime}`}
           </div>
           <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{date.artists.join(" & ")}</div>
           <div style={{fontSize:11,color:t.textMuted}}>{date.venue}{date.city&&`, ${date.city}`}{date.country&&` — ${date.country}`}</div>

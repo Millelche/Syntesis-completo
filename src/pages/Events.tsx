@@ -1,14 +1,53 @@
 import Layout from "@/components/Layout";
 import EventCard from "@/components/EventCard";
 import { events as default_events } from "@/data/mockData";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const Events = () => {
   const stored_events = localStorage.getItem("syntesis_events");
   const events = stored_events ? JSON.parse(stored_events) : default_events;
-  const upcomingEvents = events.filter(e => !e.isPast);
-  const pastEvents = events.filter(e => e.isPast);
+
+  // ← CAMBIO: se agrega .sort() para ordenar por fecha ascendente
+  // función para determinar si un evento ya pasó, considerando fecha y hora de término
+  const isEventEnded = (event: any) => {
+    if (event.endDate && event.endTime) {
+      return new Date(
+        `${event.endDate}T${event.endTime}`
+      ) < new Date();
+    }
+
+    return event.isPast;
+  };
+
+  const upcomingEvents = events
+    .filter((e) => !isEventEnded(e))
+    .sort((a, b) =>
+      new Date(a.startDate || a.date).getTime() -
+      new Date(b.startDate || b.date).getTime()
+    );
+
+  const pastEvents = events.filter((e) => isEventEnded(e));
   const featuredEvent = upcomingEvents[0];
+
+  // ← NUEVO: el resto de upcoming después del featured
+  const nextEvents = upcomingEvents.slice(1);
+  const formatDate = (dateStr: string) => {
+  const [year, month, day] = dateStr.split("-");
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  );
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).toUpperCase();
+};
 
   return (
     <Layout theme="events">
@@ -22,48 +61,59 @@ const Events = () => {
               </span>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <div className="opacity-0 animate-fade-up stagger-1">
-                  <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
-                    <img 
-                      src={featuredEvent.flyer} 
-                      alt={featuredEvent.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <Link to={`/events/${featuredEvent.slug}`}>
+                    <div className="relative aspect-[3/4] overflow-hidden bg-secondary cursor-pointer">
+                      <img
+                        src={featuredEvent.flyer}
+                        alt={featuredEvent.name}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                  </Link>
                 </div>
-                
+
                 <div className="flex flex-col justify-center opacity-0 animate-fade-up stagger-2">
-                  <span className="text-sm uppercase tracking-widest text-muted-foreground mb-2">
-                    {new Date(featuredEvent.date).toLocaleDateString("en-US", {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
-                  <h1 className="text-display-lg md:text-display-xl font-display mb-4">
-                    {featuredEvent.name}
-                  </h1>
+
+                  <div className="text-sm uppercase tracking-widest text-muted-foreground mb-4">
+
+                    <div>
+                      {formatDate(featuredEvent.startDate || featuredEvent.date)}
+                    </div>
+
+                    {featuredEvent.startTime && featuredEvent.endTime && (
+                      <div className="mt-1">
+                        {featuredEvent.startTime} → {featuredEvent.endTime} HS
+                      </div>
+                    )}
+                  </div>
+                 <Link to={`/events/${featuredEvent.slug}`}>
+                    <h1 className="text-display-lg md:text-display-xl font-display mb-4 hover:text-primary transition-colors cursor-pointer">
+                      {featuredEvent.name}
+                    </h1>
+                  </Link>
                   <p className="text-lg text-muted-foreground mb-2">
                     {featuredEvent.venue}
                   </p>
                   <p className="text-muted-foreground mb-8">
                     {featuredEvent.city}
                   </p>
-                  
+
                   <div className="mb-8">
-                    <h3 className="text-sm uppercase tracking-widest text-primary mb-4">Line-up</h3>
+                    <h3 className="text-sm uppercase tracking-widest text-primary mb-4">
+                      Line-up
+                    </h3>
                     <div className="flex flex-wrap gap-3">
-                      {featuredEvent.lineup.map(artist => (
+                      {featuredEvent.lineup.map((artist) => (
                         <span key={artist} className="text-lg font-display">
                           {artist}
                         </span>
                       ))}
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-wrap gap-4">
-                    {featuredEvent.ticketLinks?.map(link => (
-                      <a 
+                    {featuredEvent.ticketLinks?.map((link) => (
+                      <a
                         key={link.name}
                         href={link.url}
                         target="_blank"
@@ -78,7 +128,21 @@ const Events = () => {
               </div>
             </div>
           )}
-          
+
+          {/* ← NUEVO: Next Events */}
+          {nextEvents.length > 0 && (
+            <div className="mb-24">
+              <h2 className="text-display-md font-display mb-12 opacity-0 animate-fade-up">
+                NEXT EVENTS
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
+                {nextEvents.map((event, index) => (
+                  <EventCard key={event.id} event={event} index={index} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Past Events */}
           <div>
             <h2 className="text-display-md font-display mb-12 opacity-0 animate-fade-up">

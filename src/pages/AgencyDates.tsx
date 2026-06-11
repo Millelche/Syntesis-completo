@@ -13,13 +13,49 @@ import {
 const AgencyDates = () => {
   const stored_dates = localStorage.getItem("syntesis_dates");
   const bookingDates = stored_dates ? JSON.parse(stored_dates) : default_bookingDates;
-  const sortedDates = [...bookingDates].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+  const sortedDates = [...bookingDates].sort((a, b) =>
+    new Date(a.startDate || a.date).getTime() -
+    new Date(b.startDate || b.date).getTime()
   );
-  
-  const today = new Date();
-  const futureDates = sortedDates.filter(d => new Date(d.date) >= today);
-  const pastDates = sortedDates.filter(d => new Date(d.date) < today);
+    
+  const isDateEnded = (date: any) => {
+    if (
+      date.endDate &&
+      date.endTime &&
+      date.endDate.trim() !== "" &&
+      date.endTime.trim() !== ""
+    ) {
+      return new Date(
+        `${date.endDate}T${date.endTime}`
+      ) < new Date();
+    }
+
+    return false;
+  };
+    
+  const futureDates = sortedDates.filter(
+    d => !isDateEnded(d)
+  );
+
+  const pastDates = sortedDates.filter(
+    d => isDateEnded(d)
+  );
+
+  const formatDate = (dateStr: string) => {
+  const [year, month, day] = dateStr.split("-");
+
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  );
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
   return (
     <Layout theme="agency">
@@ -36,7 +72,7 @@ const AgencyDates = () => {
               NEXT DATES
             </h1>
             <p className="text-lg text-muted-foreground opacity-0 animate-fade-up stagger-1">
-              Explora las próximas presentaciones de nuestros artistas.
+              Explore upcoming performances from our artists.
             </p>
           </div>
           
@@ -60,20 +96,22 @@ const AgencyDates = () => {
                     {futureDates.map((date, index) => (
                       <TableRow key={index} className="border-border/50 hover:bg-secondary/50">
                         <TableCell className="font-medium">
-                          {new Date(date.date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
+                          {/* se correge para que no reste un dìa */}
+                          <div>
+                            {formatDate(date.startDate || date.date)}
+                          </div>
+
+                          {date.startTime && date.endTime && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {date.startTime} → {date.endTime} HS
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Link 
-                            to={`/agency/${date.artistSlug}`}
-                            className="font-display hover:text-primary transition-colors link-underline"
-                          >
-                            {date.artist}
-                          </Link>
-                        </TableCell>
+                            <span className="font-display">
+                              {date.artists?.join(" & ") || date.artist}
+                            </span>
+                          </TableCell>
                         <TableCell className="text-muted-foreground">{date.promoter}</TableCell>
                         <TableCell className="text-muted-foreground">{date.city}</TableCell>
                         <TableCell className="text-muted-foreground">{date.country}</TableCell>
@@ -123,20 +161,13 @@ const AgencyDates = () => {
                     {pastDates.map((date, index) => (
                       <TableRow key={index} className="border-border/50 opacity-60">
                         <TableCell className="font-medium">
-                          {new Date(date.date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
+                          {formatDate(date.startDate || date.date)}
                         </TableCell>
                         <TableCell>
-                          <Link 
-                            to={`/agency/${date.artistSlug}`}
-                            className="font-display hover:text-primary transition-colors"
-                          >
-                            {date.artist}
-                          </Link>
-                        </TableCell>
+                            <span className="font-display">
+                              {date.artists?.join(" & ") || date.artist}
+                            </span>
+                          </TableCell>
                         <TableCell className="text-muted-foreground">{date.promoter}</TableCell>
                         <TableCell className="text-muted-foreground">{date.city}</TableCell>
                         <TableCell className="text-muted-foreground">{date.country}</TableCell>
