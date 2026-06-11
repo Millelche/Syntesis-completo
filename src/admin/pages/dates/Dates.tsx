@@ -1,7 +1,13 @@
 /**
- * Dates.tsx — v4
+ * Dates.tsx — v5
  * CRUD de próximas fechas con Supabase como backend.
- * Merge: Supabase (master) + startDate/endDate/time, validación (colegas)
+ * Cambios v5:
+ *  - Validación: fecha/hora inicio debe ser menor a fecha/hora término
+ *  - Zona horaria Argentina (America/Argentina/Buenos_Aires) para calcular si una fecha es pasada
+ *    → Para cambiar la zona horaria, modificar la constante TZ_OFFSET abajo
+ *  - Upload de imagen comentado (descomentar si se necesita en el futuro)
+ *  - Fechas pasadas no muestran BUY TICKETS
+ *  - Fix: fechas creadas ahora aparecen correctamente en la página pública
  */
 import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
@@ -11,25 +17,47 @@ import { Navigate } from "react-router-dom";
 import { artists as defaultArtists, Artist } from "@/data/mockData";
 import { supabase } from "@/lib/supabase";
 
-function convertToWebP(file: File, quality = 0.82): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width; canvas.height = img.height;
-      canvas.getContext("2d")!.drawImage(img, 0, 0);
-      canvas.toBlob(blob => {
-        if (!blob) { reject("Error"); return; }
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      }, "image/webp", quality);
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => reject("Error al cargar"); img.src = url;
-  });
+// ─── Zona horaria ─────────────────────────────────────────────────────────────
+// UTC-3 para Argentina (America/Argentina/Buenos_Aires)
+// Cambiar este valor si se necesita otra zona horaria:
+//   UTC-5 = -5, UTC+1 = 1, etc.
+const TZ_OFFSET_HOURS = -3;
+
+/** Devuelve la fecha/hora actual en la zona horaria configurada */
+function nowInTZ(): Date {
+  const utc = new Date();
+  return new Date(utc.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
 }
+
+/** Compara si una fecha+hora de término ya pasó según la zona horaria configurada */
+function isDatePast(endDate?: string, endTime?: string): boolean {
+  if (!endDate || !endTime) return false;
+  const end = new Date(`${endDate}T${endTime}:00`);
+  // Ajustar el end a UTC asumiendo que está en TZ_OFFSET_HOURS
+  const endUTC = new Date(end.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
+  return endUTC < new Date();
+}
+
+// ─── Imagen a WebP (comentado — descomentar si se necesita upload de imagen) ──
+// function convertToWebP(file: File, quality = 0.82): Promise<string> {
+//   return new Promise((resolve, reject) => {
+//     const img = new Image();
+//     const url = URL.createObjectURL(file);
+//     img.onload = () => {
+//       const canvas = document.createElement("canvas");
+//       canvas.width = img.width; canvas.height = img.height;
+//       canvas.getContext("2d")!.drawImage(img, 0, 0);
+//       canvas.toBlob(blob => {
+//         if (!blob) { reject("Error"); return; }
+//         const reader = new FileReader();
+//         reader.onload = () => resolve(reader.result as string);
+//         reader.readAsDataURL(blob);
+//       }, "image/webp", quality);
+//       URL.revokeObjectURL(url);
+//     };
+//     img.onerror = () => reject("Error al cargar"); img.src = url;
+//   });
+// }
 
 export interface BookingDateV2 {
   id: string;
@@ -44,7 +72,7 @@ export interface BookingDateV2 {
   country: string;
   city: string;
   ticketUrl?: string;
-  image?: string;
+  // image?: string; // comentado — descomentar si se rehabilita upload
 }
 
 const EMPTY: BookingDateV2 = {
@@ -52,7 +80,8 @@ const EMPTY: BookingDateV2 = {
   startDate: "", startTime: "",
   endDate: "", endTime: "",
   artists: [], venue: "", promoter: "Syntesis",
-  country: "", city: "", ticketUrl: "", image: "",
+  country: "", city: "", ticketUrl: "",
+  // image: "", // comentado
 };
 
 export default function Dates() {
@@ -63,16 +92,14 @@ export default function Dates() {
   if (!hasAccess) return <Navigate to="/admin/dashboard" replace />;
   const canEdit = hasAccess;
 
-  const [dates, setDates]         = useState<BookingDateV2[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [artists, setArtists]     = useState<Artist[]>([]);
-  const [modal, setModal]         = useState<null|"create"|"edit"|"delete">(null);
-  const [selected, setSelected]   = useState<BookingDateV2|null>(null);
-  const [form, setForm]           = useState<BookingDateV2>({...EMPTY});
-  const [converting, setConv]     = useState(false);
-  const [converted, setDone]      = useState(false);
+  const [dates, setDates]       = useState<BookingDateV2[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [artists, setArtists]   = useState<Artist[]>([]);
+  const [modal, setModal]       = useState<null|"create"|"edit"|"delete">(null);
+  const [selected, setSelected] = useState<BookingDateV2|null>(null);
+  const [form, setForm]         = useState<BookingDateV2>({...EMPTY});
   const [artistDropdown, setArtistDropdown] = useState(false);
-  const [errors, setErrors]       = useState<string[]>([]);
+  const [errors, setErrors]     = useState<string[]>([]);
 
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
@@ -82,13 +109,13 @@ export default function Dates() {
       const { data: artistData } = await supabase.from("artists").select("*").order("sort_order");
       setArtists(artistData && artistData.length > 0 ? artistData : defaultArtists);
 
-      const { data, error } = await supabase.from("dates").select("*").order("date");
+      const { data, error } = await supabase.from("dates").select("*").order("start_date");
       if (error || !data || data.length === 0) {
         setDates([]);
       } else {
         setDates(data.map(row => ({
           id: row.id,
-          date: row.date ?? "",
+          date: row.start_date ?? row.date ?? "",
           startDate: row.start_date ?? row.date ?? "",
           startTime: row.start_time ?? "",
           endDate: row.end_date ?? "",
@@ -99,7 +126,7 @@ export default function Dates() {
           country: row.country ?? "",
           city: row.city ?? "",
           ticketUrl: row.ticket_url ?? "",
-          image: row.image ?? "",
+          // image: row.image ?? "", // comentado
         })));
       }
       setLoading(false);
@@ -107,8 +134,8 @@ export default function Dates() {
     load();
   }, []);
 
-  function openCreate() { setForm({...EMPTY}); setErrors([]); setDone(false); setArtistDropdown(false); setModal("create"); }
-  function openEdit(d: BookingDateV2) { setSelected(d); setForm({...d, artists:[...d.artists]}); setErrors([]); setDone(false); setArtistDropdown(false); setModal("edit"); }
+  function openCreate() { setForm({...EMPTY}); setErrors([]); setArtistDropdown(false); setModal("create"); }
+  function openEdit(d: BookingDateV2) { setSelected(d); setForm({...d, artists:[...d.artists]}); setErrors([]); setArtistDropdown(false); setModal("edit"); }
   function openDelete(d: BookingDateV2) { setSelected(d); setModal("delete"); }
 
   function toggleArtist(name: string) {
@@ -118,13 +145,12 @@ export default function Dates() {
     }));
   }
 
-  async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return;
-    setConv(true); setDone(false);
-    try { const webp = await convertToWebP(file); setForm(f=>({...f,image:webp})); setDone(true); }
-    catch { alert("Error al procesar la imagen."); }
-    finally { setConv(false); }
-  }
+  // Upload de imagen — comentado
+  // async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
+  //   const file = e.target.files?.[0]; if (!file) return;
+  //   try { const webp = await convertToWebP(file); setForm(f=>({...f,image:webp})); }
+  //   catch { alert("Error al procesar la imagen."); }
+  // }
 
   async function handleSave() {
     const errs: string[] = [];
@@ -135,6 +161,14 @@ export default function Dates() {
     if (!form.endTime) errs.push("La hora de término es obligatoria.");
     if (!form.venue.trim()) errs.push("El venue es obligatorio.");
     if (form.startDate && form.startDate < "2024-09-01") errs.push("No se permiten fechas anteriores a septiembre de 2024.");
+
+    // Validar que inicio sea menor a término
+    if (form.startDate && form.startTime && form.endDate && form.endTime) {
+      const start = new Date(`${form.startDate}T${form.startTime}`);
+      const end = new Date(`${form.endDate}T${form.endTime}`);
+      if (start >= end) errs.push("La fecha/hora de inicio debe ser anterior a la de término.");
+    }
+
     if (errs.length > 0) { setErrors(errs); return; }
     setErrors([]);
 
@@ -151,18 +185,24 @@ export default function Dates() {
       country: form.country,
       city: form.city,
       ticket_url: form.ticketUrl,
-      image: form.image,
+      // image: form.image, // comentado
     };
 
     if (modal === "create") {
-      const { error } = await supabase.from("dates").insert(row);
+      const { data, error } = await supabase.from("dates").insert(row).select().single();
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setDates(prev => [...prev, {...form, id: row.id, date: form.startDate!}].sort((a,b) => a.date.localeCompare(b.date)));
+      const saved = data ?? row;
+      setDates(prev => [...prev, {
+        ...form,
+        id: saved.id,
+        date: form.startDate!,
+      }].sort((a,b) => (a.startDate||a.date).localeCompare(b.startDate||b.date)));
       logAction(`Creó fecha: ${form.artists.join(" & ")} en ${form.venue}`, "fechas");
     } else if (modal === "edit" && selected) {
       const { error } = await supabase.from("dates").update(row).eq("id", selected.id);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setDates(prev => prev.map(d => d.id === selected.id ? {...form, id: selected.id, date: form.startDate!} : d).sort((a,b) => a.date.localeCompare(b.date)));
+      setDates(prev => prev.map(d => d.id === selected.id ? {...form, id: selected.id, date: form.startDate!} : d)
+        .sort((a,b) => (a.startDate||a.date).localeCompare(b.startDate||b.date)));
       logAction(`Editó fecha: ${form.artists.join(" & ")} en ${form.venue}`, "fechas");
     }
     setModal(null);
@@ -177,9 +217,8 @@ export default function Dates() {
     setModal(null);
   }
 
-  const today    = new Date().toISOString().split("T")[0];
-  const upcoming = dates.filter(d => (d.startDate || d.date) >= today);
-  const past     = dates.filter(d => (d.startDate || d.date) < today);
+  const upcoming = dates.filter(d => !isDatePast(d.endDate, d.endTime));
+  const past     = dates.filter(d => isDatePast(d.endDate, d.endTime));
 
   if (loading) return <AdminLayout><div style={{padding:"2.5rem",color:t.textMuted,fontSize:13}}>Cargando fechas...</div></AdminLayout>;
 
@@ -197,13 +236,13 @@ export default function Dates() {
         {upcoming.length>0 && (
           <div style={{marginBottom:"2rem"}}>
             <div style={{fontSize:9,letterSpacing:"0.18em",color:t.textMuted,textTransform:"uppercase",marginBottom:"0.75rem"}}>Próximas presentaciones</div>
-            {upcoming.map(d=><DateRow key={d.id} date={d} canEdit={canEdit} onEdit={openEdit} onDelete={openDelete} t={t}/>)}
+            {upcoming.map(d=><DateRow key={d.id} date={d} canEdit={canEdit} onEdit={openEdit} onDelete={openDelete} t={t} isPast={false}/>)}
           </div>
         )}
         {past.length>0 && (
           <div>
             <div style={{fontSize:9,letterSpacing:"0.18em",color:t.textMuted,textTransform:"uppercase",marginBottom:"0.75rem"}}>Fechas pasadas</div>
-            {past.map(d=><DateRow key={d.id} date={d} canEdit={canEdit} onEdit={openEdit} onDelete={openDelete} t={t}/>)}
+            {past.map(d=><DateRow key={d.id} date={d} canEdit={canEdit} onEdit={openEdit} onDelete={openDelete} t={t} isPast={true}/>)}
           </div>
         )}
         {dates.length===0 && <div style={{textAlign:"center",padding:"4rem",color:t.textFaint,fontSize:13}}>No hay fechas cargadas aún.</div>}
@@ -217,9 +256,9 @@ export default function Dates() {
 
               <div>
                 <label style={lbl}>Artistas * (podés seleccionar más de uno)</label>
-                <div onClick={()=>setArtistDropdown(!artistDropdown)} style={{...inp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", userSelect:"none"}}>
-                  <span style={{color: form.artists.length>0 ? t.text : t.textFaint}}>
-                    {form.artists.length>0 ? form.artists.join(", ") : "Seleccionar artistas..."}
+                <div onClick={()=>setArtistDropdown(!artistDropdown)} style={{...inp,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",userSelect:"none"}}>
+                  <span style={{color:form.artists.length>0?t.text:t.textFaint}}>
+                    {form.artists.length>0?form.artists.join(", "):"Seleccionar artistas..."}
                   </span>
                   <span style={{fontSize:10,color:t.textFaint}}>{artistDropdown?"▲":"▼"}</span>
                 </div>
@@ -254,13 +293,13 @@ export default function Dates() {
 
               <div><label style={lbl}>Link de tickets (opcional)</label><input style={inp} value={form.ticketUrl??""} onChange={e=>setForm(f=>({...f,ticketUrl:e.target.value}))} placeholder="https://..."/></div>
 
+              {/* Upload de imagen — comentado. Descomentar si se necesita en el futuro:
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Imagen / Flyer (opcional)</label>
                 <input type="file" accept="image/*" onChange={handleImage} style={{fontSize:12,color:t.textMuted,cursor:"pointer"}}/>
-                {converting && <div style={{fontSize:11,color:t.textMuted,marginTop:8}}>⏳ Convirtiendo a WebP...</div>}
-                {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Imagen optimizada para web (WebP)</div>}
-                {form.image && !converting && <img src={form.image} alt="Preview" style={{marginTop:10,height:90,border:`1px solid ${t.border}`}}/>}
+                {form.image && <img src={form.image} alt="Preview" style={{marginTop:10,height:90,border:`1px solid ${t.border}`}}/>}
               </div>
+              */}
 
               {errors.length > 0 && (
                 <div style={{backgroundColor:t.dangerBg,border:`1px solid ${t.dangerBorder}`,padding:"10px 14px"}}>
@@ -295,25 +334,26 @@ export default function Dates() {
   );
 }
 
-function DateRow({date,canEdit,onEdit,onDelete,t}: {date:BookingDateV2; canEdit:boolean; onEdit:(d:BookingDateV2)=>void; onDelete:(d:BookingDateV2)=>void; t:any}) {
+function DateRow({date,canEdit,onEdit,onDelete,t,isPast}: {date:BookingDateV2; canEdit:boolean; onEdit:(d:BookingDateV2)=>void; onDelete:(d:BookingDateV2)=>void; t:any; isPast:boolean}) {
   const displayDate = date.startDate || date.date;
   return (
     <div style={{backgroundColor:t.bgCard,border:`1px solid ${t.border}`,padding:"1rem 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.5rem"}}>
-      <div style={{display:"flex",alignItems:"center",gap:"1rem"}}>
-        {date.image
-          ? <img src={date.image} alt="flyer" style={{width:44,height:56,objectFit:"cover",flexShrink:0,border:`1px solid ${t.border}`}}/>
-          : <div style={{width:44,height:56,backgroundColor:t.bg,border:`1px solid ${t.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:7,color:t.textFaint}}>N/A</span></div>
-        }
-        <div>
-          <div style={{fontSize:10,color:t.textFaint,letterSpacing:"0.08em",marginBottom:3}}>
-            {new Date(displayDate+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
-            {date.startTime && ` · ${date.startTime}`}
-            {date.endDate && date.endTime && ` → ${date.endTime}`}
-          </div>
-          <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{date.artists.join(" & ")}</div>
-          <div style={{fontSize:11,color:t.textMuted}}>{date.venue}{date.city&&`, ${date.city}`}{date.country&&` — ${date.country}`}</div>
-          {date.ticketUrl && <a href={date.ticketUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:9,color:t.textFaint,letterSpacing:"0.12em",textTransform:"uppercase",textDecoration:"none",marginTop:4,display:"inline-block"}} onClick={e=>e.stopPropagation()}>Buy Tickets →</a>}
+      <div>
+        <div style={{fontSize:10,color:t.textFaint,letterSpacing:"0.08em",marginBottom:3}}>
+          {new Date(displayDate+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
+          {date.startTime && ` · ${date.startTime}`}
+          {date.endDate && date.endTime && ` → ${date.endDate !== displayDate ? date.endDate+" " : ""}${date.endTime}`}
         </div>
+        <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{date.artists.join(" & ")}</div>
+        <div style={{fontSize:11,color:t.textMuted}}>{date.venue}{date.city&&`, ${date.city}`}{date.country&&` — ${date.country}`}</div>
+        {/* Buy Tickets solo en fechas próximas */}
+        {!isPast && date.ticketUrl && (
+          <a href={date.ticketUrl} target="_blank" rel="noopener noreferrer"
+            style={{fontSize:9,color:t.textFaint,letterSpacing:"0.12em",textTransform:"uppercase",textDecoration:"none",marginTop:4,display:"inline-block"}}
+            onClick={e=>e.stopPropagation()}>
+            Buy Tickets →
+          </a>
+        )}
       </div>
       {canEdit && (
         <div style={{display:"flex",gap:6,flexShrink:0}}>
