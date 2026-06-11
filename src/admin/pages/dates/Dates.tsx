@@ -342,16 +342,16 @@ function DateRow({date,canEdit,onEdit,onDelete,t,isPast}: {date:BookingDateV2; c
         <div style={{fontSize:10,color:t.textFaint,letterSpacing:"0.08em",marginBottom:3}}>
           {new Date(displayDate+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
           {date.startTime && ` · ${date.startTime}`}
-          {date.endDate && date.endTime && ` → ${date.endDate !== displayDate ? date.endDate+" " : ""}${date.endTime}`}
+          {date.endDate && date.endTime && ` → ${date.endDate !== displayDate ? new Date(date.endDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})+" " : ""}${date.endTime}`}
         </div>
         <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{date.artists.join(" & ")}</div>
         <div style={{fontSize:11,color:t.textMuted}}>{date.venue}{date.city&&`, ${date.city}`}{date.country&&` — ${date.country}`}</div>
-        {/* Buy Tickets solo en fechas próximas */}
+        {/* Link tickets — solo muestra en admin, no es botón público */}
         {!isPast && date.ticketUrl && (
           <a href={date.ticketUrl} target="_blank" rel="noopener noreferrer"
             style={{fontSize:9,color:t.textFaint,letterSpacing:"0.12em",textTransform:"uppercase",textDecoration:"none",marginTop:4,display:"inline-block"}}
             onClick={e=>e.stopPropagation()}>
-            Buy Tickets →
+            Link tickets →
           </a>
         )}
       </div>
