@@ -1,6 +1,7 @@
 /**
- * Login.tsx — v3
+ * Login.tsx — v4
  * Pantalla de login con reCAPTCHA v2.
+ * Fix v4: handleSubmit async, mensaje de error claro incluyendo instrucción de localStorage
  */
 import { useState, useEffect, useRef } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
@@ -8,16 +9,16 @@ import { darkTheme, lightTheme } from "@/admin/components/theme";
 import { useNavigate } from "react-router-dom";
 import ReCAPTCHA from "react-google-recaptcha";
 
-const RECAPTCHA_KEY = import.meta.env.VITE_RECAPTCHA_KEY;
+const RECAPTCHA_KEY = import.meta.env.VITE_RECAPTCHA_KEY as string;
 
 export default function Login() {
   const { login, currentUser, theme, toggleTheme } = useAdmin();
   const navigate = useNavigate();
 
-  const [username, setUsername]     = useState("");
-  const [password, setPassword]     = useState("");
-  const [error, setError]           = useState("");
-  const [loading, setLoading]       = useState(false);
+  const [username, setUsername]       = useState("");
+  const [password, setPassword]       = useState("");
+  const [error, setError]             = useState("");
+  const [loading, setLoading]         = useState(false);
   const [captchaDone, setCaptchaDone] = useState(false);
   const recaptchaRef = useRef<ReCAPTCHA>(null);
 
@@ -29,27 +30,31 @@ export default function Login() {
 
   function handleCaptcha(token: string | null) {
     setCaptchaDone(!!token);
+    if (token) setError("");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!captchaDone) {
-      setError("Por favor completá el captcha.");
+      setError("Por favor completá el captcha antes de continuar.");
       return;
     }
     setLoading(true);
     setError("");
-    setTimeout(() => {
-      const ok = login(username.trim(), password);
+    try {
+      const ok = await login(username.trim(), password);
       if (ok) {
         navigate("/admin/dashboard");
       } else {
-        setError("Usuario o contraseña incorrectos");
+        setError("Usuario o contraseña incorrectos.");
         recaptchaRef.current?.reset();
         setCaptchaDone(false);
       }
+    } catch {
+      setError("Error al verificar. Intentá de nuevo.");
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   }
 
   const inp: React.CSSProperties = {
@@ -161,8 +166,8 @@ export default function Login() {
           {error && (
             <div style={{
               fontSize: 11, color: t.danger, textAlign: "center",
-              padding: "7px", backgroundColor: t.dangerBg,
-              border: `1px solid ${t.dangerBorder}`,
+              padding: "10px 12px", backgroundColor: t.dangerBg,
+              border: `1px solid ${t.dangerBorder}`, lineHeight: 1.6,
             }}>
               {error}
             </div>
