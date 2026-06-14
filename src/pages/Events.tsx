@@ -5,8 +5,13 @@ import { events as default_events } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
-// UTC-3 Argentina
 const TZ_OFFSET_HOURS = -3;
+
+function toAbsoluteUrl(url: string): string {
+  if (!url) return "#";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return "https://" + url;
+}
 
 function isEventEnded(event: any): boolean {
   if (event.endDate && event.endTime) {
@@ -65,10 +70,7 @@ const Events = () => {
 
   const upcomingEvents = events
     .filter(e => !isEventEnded(e))
-    .sort((a, b) =>
-      new Date(a.startDate || a.date).getTime() -
-      new Date(b.startDate || b.date).getTime()
-    );
+    .sort((a, b) => new Date(a.startDate || a.date).getTime() - new Date(b.startDate || b.date).getTime());
 
   const pastEvents = events.filter(e => isEventEnded(e));
   const featuredEvent = upcomingEvents[0];
@@ -87,12 +89,9 @@ const Events = () => {
       <section className="pt-32 pb-20">
         <div className="container px-6 lg:px-12">
 
-          {/* Featured Event */}
           {featuredEvent && (
             <div className="mb-24">
-              <span className="text-xs uppercase tracking-widest text-primary mb-4 block opacity-0 animate-fade-up">
-                Next Event
-              </span>
+              <span className="text-xs uppercase tracking-widest text-primary mb-4 block opacity-0 animate-fade-up">Next Event</span>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <div className="opacity-0 animate-fade-up stagger-1">
                   <Link to={`/events/${featuredEvent.slug}`}>
@@ -106,13 +105,10 @@ const Events = () => {
                     </div>
                   </Link>
                 </div>
-
                 <div className="flex flex-col justify-center opacity-0 animate-fade-up stagger-2">
                   <div className="text-sm uppercase tracking-widest text-muted-foreground mb-4">
                     <div>{formatDate(featuredEvent.startDate || featuredEvent.date)}</div>
-                    {featuredEvent.startTime && (
-                      <div className="mt-1">{featuredEvent.startTime} HS</div>
-                    )}
+                    {featuredEvent.startTime && <div className="mt-1">{featuredEvent.startTime} HS</div>}
                   </div>
                   <Link to={`/events/${featuredEvent.slug}`}>
                     <h1 className="text-display-lg md:text-display-xl font-display mb-4 hover:text-primary transition-colors cursor-pointer">
@@ -121,7 +117,6 @@ const Events = () => {
                   </Link>
                   <p className="text-lg text-muted-foreground mb-2">{featuredEvent.venue}</p>
                   <p className="text-muted-foreground mb-8">{featuredEvent.city}</p>
-
                   <div className="mb-8">
                     <h3 className="text-sm uppercase tracking-widest text-primary mb-4">Line-up</h3>
                     <div className="flex flex-wrap gap-3">
@@ -130,10 +125,9 @@ const Events = () => {
                       ))}
                     </div>
                   </div>
-
                   <div className="flex flex-wrap gap-4">
                     {(featuredEvent.ticketLinks ?? []).map((link: {name:string;url:string}) => (
-                      <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                      <a key={link.name} href={toAbsoluteUrl(link.url)} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 text-sm font-medium uppercase tracking-widest hover:bg-primary/90 transition-colors">
                         Buy Tickets ({link.name})
                       </a>
@@ -144,7 +138,6 @@ const Events = () => {
             </div>
           )}
 
-          {/* Next Events */}
           {nextEvents.length > 0 && (
             <div className="mb-24">
               <h2 className="text-display-md font-display mb-12 opacity-0 animate-fade-up">NEXT EVENTS</h2>
@@ -156,7 +149,6 @@ const Events = () => {
             </div>
           )}
 
-          {/* Past Events */}
           {pastEvents.length > 0 && (
             <div>
               <h2 className="text-display-md font-display mb-12 opacity-0 animate-fade-up">PAST EDITIONS</h2>

@@ -4,8 +4,13 @@ import Layout from "@/components/Layout";
 import { events as default_events } from "@/data/mockData";
 import { supabase } from "@/lib/supabase";
 
-// UTC-3 Argentina
 const TZ_OFFSET_HOURS = -3;
+
+function toAbsoluteUrl(url: string): string {
+  if (!url) return "#";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return "https://" + url;
+}
 
 const formatDate = (dateStr: string) => {
   const [year, month, day] = dateStr.split("-");
@@ -27,7 +32,6 @@ const EventDetail = () => {
         .select("*")
         .eq("slug", slug)
         .single();
-
       if (error || !data) {
         const fallback = default_events.find(e => e.slug === slug) ?? null;
         setEvent(fallback);
@@ -67,28 +71,24 @@ const EventDetail = () => {
     return event.isPast ?? false;
   };
 
-  if (loading) {
-    return (
-      <Layout theme="events">
-        <section className="pt-32 pb-20 min-h-screen flex items-center justify-center">
-          <div className="text-muted-foreground text-sm">Cargando evento...</div>
-        </section>
-      </Layout>
-    );
-  }
+  if (loading) return (
+    <Layout theme="events">
+      <section className="pt-32 pb-20 min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Cargando evento...</div>
+      </section>
+    </Layout>
+  );
 
-  if (!event) {
-    return (
-      <Layout theme="events">
-        <section className="pt-32 pb-20 min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-display-lg font-display mb-4">Event Not Found</h1>
-            <Link to="/events" className="text-primary hover:underline">← Back to Events</Link>
-          </div>
-        </section>
-      </Layout>
-    );
-  }
+  if (!event) return (
+    <Layout theme="events">
+      <section className="pt-32 pb-20 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-display-lg font-display mb-4">Event Not Found</h1>
+          <Link to="/events" className="text-primary hover:underline">← Back to Events</Link>
+        </div>
+      </section>
+    </Layout>
+  );
 
   const ended = isEventEnded();
   const formattedDate = formatDate(event.startDate || event.date);
@@ -100,9 +100,7 @@ const EventDetail = () => {
           <Link to="/events" className="text-sm uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors mb-8 inline-block opacity-0 animate-fade-up">
             ← Back to Events
           </Link>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
-            {/* Flyer */}
             <div className="opacity-0 animate-fade-up stagger-1">
               <div className="aspect-[3/4] overflow-hidden bg-secondary sticky top-32">
                 {event.flyer
@@ -113,37 +111,26 @@ const EventDetail = () => {
                 }
               </div>
             </div>
-
-            {/* Info */}
             <div className="opacity-0 animate-fade-up stagger-2">
               {ended && (
-                <span className="inline-block bg-muted text-muted-foreground text-xs uppercase tracking-widest px-3 py-1 mb-4">
-                  Past Event
-                </span>
+                <span className="inline-block bg-muted text-muted-foreground text-xs uppercase tracking-widest px-3 py-1 mb-4">Past Event</span>
               )}
-
               <div className="text-sm uppercase tracking-widest text-primary block mb-4">
                 <div>{formattedDate}</div>
-                {!ended && event.startTime && (
-                  <div className="mt-1">{event.startTime} HS</div>
-                )}
+                {!ended && event.startTime && <div className="mt-1">{event.startTime} HS</div>}
               </div>
-
               <h1 className="text-display-lg md:text-display-xl font-display mb-6">{event.name}</h1>
-
               <div className="mb-8 pb-8 border-b border-border/50">
                 <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-2">Venue</span>
                 <p className="text-xl font-display">{event.venue}</p>
                 <p className="text-muted-foreground">{event.city}</p>
               </div>
-
               {event.description && (
                 <div className="mb-8 pb-8 border-b border-border/50">
                   <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-3">About</span>
                   <p className="text-lg leading-relaxed text-muted-foreground">{event.description}</p>
                 </div>
               )}
-
               <div className="mb-8 pb-8 border-b border-border/50">
                 <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">Line-up</span>
                 <div className="space-y-2">
@@ -152,7 +139,6 @@ const EventDetail = () => {
                   ))}
                 </div>
               </div>
-
               {event.setTimes && event.setTimes.length > 0 && (
                 <div className="mb-8 pb-8 border-b border-border/50">
                   <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">Set Times</span>
@@ -166,14 +152,12 @@ const EventDetail = () => {
                   </div>
                 </div>
               )}
-
-              {/* Tickets — solo para eventos futuros */}
               {!ended && event.ticketLinks && event.ticketLinks.length > 0 && (
                 <div className="mb-8">
                   <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">Get Tickets</span>
                   <div className="flex flex-wrap gap-4">
                     {event.ticketLinks.map((link: any) => (
-                      <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                      <a key={link.name} href={toAbsoluteUrl(link.url)} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary/90 transition-colors">
                         Buy Tickets ({link.name})
                       </a>
@@ -181,19 +165,15 @@ const EventDetail = () => {
                   </div>
                 </div>
               )}
-
-              {/* Media — solo para eventos pasados */}
-              {ended && (
+              {ended && event.recordedSets && (
                 <div className="space-y-6">
-                  {event.recordedSets && (
-                    <div>
-                      <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">Recorded Sets</span>
-                      <a href={event.recordedSets} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-secondary text-secondary-foreground px-6 py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-colors">
-                        Listen on Soundcloud
-                      </a>
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">Recorded Sets</span>
+                    <a href={toAbsoluteUrl(event.recordedSets)} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-secondary text-secondary-foreground px-6 py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-colors">
+                      Listen on Soundcloud
+                    </a>
+                  </div>
                 </div>
               )}
             </div>

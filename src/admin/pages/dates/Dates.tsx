@@ -23,6 +23,12 @@ import { supabase } from "@/lib/supabase";
 //   UTC-5 = -5, UTC+1 = 1, etc.
 const TZ_OFFSET_HOURS = -3;
 
+function toAbsoluteUrl(url: string): string {
+  if (!url) return "#";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return "https://" + url;
+}
+
 /** Devuelve la fecha/hora actual en la zona horaria configurada */
 function nowInTZ(): Date {
   const utc = new Date();
@@ -348,7 +354,7 @@ function DateRow({date,canEdit,onEdit,onDelete,t,isPast}: {date:BookingDateV2; c
         <div style={{fontSize:11,color:t.textMuted}}>{date.venue}{date.city&&`, ${date.city}`}{date.country&&` — ${date.country}`}</div>
         {/* Link tickets — solo muestra en admin, no es botón público */}
         {!isPast && date.ticketUrl && (
-          <a href={date.ticketUrl} target="_blank" rel="noopener noreferrer"
+          <a href={toAbsoluteUrl(date.ticketUrl ?? "")} target="_blank" rel="noopener noreferrer"
             style={{fontSize:9,color:t.textFaint,letterSpacing:"0.12em",textTransform:"uppercase",textDecoration:"none",marginTop:4,display:"inline-block"}}
             onClick={e=>e.stopPropagation()}>
             Link tickets →
