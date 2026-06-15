@@ -15,9 +15,10 @@ function toAbsoluteUrl(url: string): string {
 
 function isEventEnded(event: any): boolean {
   if (event.endDate && event.endTime) {
+    // Comparamos la hora guardada (hora Argentina) con la hora actual en Argentina
     const end = new Date(`${event.endDate}T${event.endTime}:00`);
-    const endUTC = new Date(end.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
-    return endUTC < new Date();
+    const nowArgentina = new Date(new Date().getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
+    return end < nowArgentina;
   }
   return event.isPast ?? false;
 }
@@ -60,6 +61,7 @@ const Events = () => {
           setTimes: row.set_times ?? [],
           ticketLinks: row.ticket_links ?? [],
           recordedSets: row.recorded_sets ?? "",
+          recordedSetsLinks: Array.isArray(row.recorded_sets_links) ? row.recorded_sets_links : [],
           isPast: row.is_past ?? false,
         })));
       }

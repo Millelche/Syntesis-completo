@@ -112,6 +112,12 @@ const ArtistDetail = () => {
 
   const socials: {name:string;url:string}[] = Array.isArray(artist.socials) ? artist.socials : [];
 
+  function toAbsoluteUrl(url: string): string {
+    if (!url) return "#";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return "https://" + url;
+  }
+
   return (
     <Layout theme="agency">
       <section className="pt-32 pb-20">
@@ -179,7 +185,7 @@ const ArtistDetail = () => {
                   <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-3">Links</span>
                   <div className="flex flex-wrap gap-4">
                     {socials.map(link => (
-                      <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                      <a key={link.name} href={toAbsoluteUrl(link.url)} target="_blank" rel="noopener noreferrer"
                         className="text-sm uppercase tracking-widest hover:text-primary transition-colors link-underline">
                         {link.name}
                       </a>

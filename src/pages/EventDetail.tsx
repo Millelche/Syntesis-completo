@@ -53,6 +53,7 @@ const EventDetail = () => {
           setTimes: data.set_times ?? [],
           ticketLinks: data.ticket_links ?? [],
           recordedSets: data.recorded_sets ?? "",
+          recordedSetsLinks: Array.isArray(data.recorded_sets_links) ? data.recorded_sets_links : [],
           isPast: data.is_past ?? false,
         });
       }
@@ -65,8 +66,8 @@ const EventDetail = () => {
     if (!event) return false;
     if (event.endDate && event.endTime) {
       const end = new Date(`${event.endDate}T${event.endTime}:00`);
-      const endUTC = new Date(end.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
-      return endUTC < new Date();
+      const nowArgentina = new Date(new Date().getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
+      return end < nowArgentina;
     }
     return event.isPast ?? false;
   };
@@ -165,14 +166,26 @@ const EventDetail = () => {
                   </div>
                 </div>
               )}
-              {ended && event.recordedSets && (
+              {ended && (event.recordedSetsLinks?.length > 0 || event.recordedSets) && (
                 <div className="space-y-6">
                   <div>
                     <span className="text-xs uppercase tracking-widest text-muted-foreground block mb-4">Recorded Sets</span>
-                    <a href={toAbsoluteUrl(event.recordedSets)} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 bg-secondary text-secondary-foreground px-6 py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-colors">
-                      Listen on Soundcloud
-                    </a>
+                    <div className="flex flex-wrap gap-4">
+                      {event.recordedSetsLinks?.length > 0
+                        ? event.recordedSetsLinks.map((rs: any) => (
+                            <a key={rs.name} href={toAbsoluteUrl(rs.url)} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-secondary text-secondary-foreground px-6 py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-colors">
+                              {rs.name || "Listen"}
+                            </a>
+                          ))
+                        : event.recordedSets && (
+                            <a href={toAbsoluteUrl(event.recordedSets)} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-secondary text-secondary-foreground px-6 py-4 text-sm font-medium uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-colors">
+                              Listen on Soundcloud
+                            </a>
+                          )
+                      }
+                    </div>
                   </div>
                 </div>
               )}
