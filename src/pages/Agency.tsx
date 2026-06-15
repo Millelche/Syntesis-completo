@@ -48,7 +48,7 @@ const Agency = () => {
               SYNTESIS ROSTER
             </h1>
             <p className="text-lg text-muted-foreground opacity-0 animate-fade-up stagger-1">
-              Representando e impulsando el talento de grandes artistas.
+              Representing and promoting the talent of great artists.
             </p>
             <div className="mt-8 flex gap-4 opacity-0 animate-fade-up stagger-2">
               <Link
