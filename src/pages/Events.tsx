@@ -140,7 +140,7 @@ const Events = () => {
 
           {nextEvents.length > 0 && (
             <div className="mb-24">
-              <h2 className="text-display-md font-display mb-12 opacity-0 animate-fade-up">NEXT EVENTS</h2>
+              <h2 className="text-display-md font-display mb-12 opacity-0 animate-fade-up">UPCOMING EVENTS</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
                 {nextEvents.map((event, index) => (
                   <EventCard key={event.id} event={event} index={index} />
