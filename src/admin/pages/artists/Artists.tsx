@@ -232,7 +232,7 @@ export default function Artists() {
                 <label style={lbl}>Links (máx. 10)</label>
                 {(form.socials as {name:string;url:string}[]).map((link, i) => (
                   <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 2fr auto",gap:"0.5rem",marginBottom:"0.5rem"}}>
-                    <input style={inp} value={link.name} onChange={e=>{const u=[...form.socials as {name:string;url:string}[]];u[i]={...u[i],name:e.target.value.toUpperCase()};setForm(f=>({...f,socials:u}));}} placeholder="SOUNDCLOUD"/>
+                    <input style={inp} value={link.name} onChange={e=>{const u=[...form.socials as {name:string;url:string}[]];u[i]={...u[i],name:e.target.value.toUpperCase()};setForm(f=>({...f,socials:u}));}} placeholder="Ej: BANDCAMP"/>
                     <input style={inp} value={link.url} onChange={e=>{const u=[...form.socials as {name:string;url:string}[]];u[i]={...u[i],url:e.target.value};setForm(f=>({...f,socials:u}));}} placeholder="https://"/>
                     <button onClick={()=>{const u=(form.socials as {name:string;url:string}[]).filter((_,j)=>j!==i);setForm(f=>({...f,socials:u}));}} style={{background:"none",border:`1px solid ${t.dangerBorder}`,color:t.danger,padding:"0 10px",cursor:"pointer",fontSize:12}}>✕</button>
                   </div>

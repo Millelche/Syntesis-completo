@@ -1,7 +1,7 @@
 /**
- * Events.tsx — v4
+ * Events.tsx — v5
  * CRUD de eventos con Supabase como backend.
- * Merge: Supabase (master) + startDate/endDate, placeholder, validación, fix tickets (colegas)
+ * v5: Recorded Sets ahora soporta múltiples links (Nombre + URL)
  */
 import { useState, useEffect } from "react";
 import { useAdmin } from "@/admin/context/AdminContext";
@@ -53,20 +53,13 @@ function generatePlaceholderImage(name: string): string {
   return canvas.toDataURL("image/webp", 0.9);
 }
 
-function formatDate(dateStr: string) {
-  const [year, month, day] = dateStr.split("-");
-  return new Date(Number(year), Number(month) - 1, Number(day))
-    .toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric" })
-    .toUpperCase();
-}
-
 const EMPTY: Event = {
   id:"", name:"", slug:"",
   date:"", time:"",
   startDate:"", startTime:"",
   endDate:"", endTime:"",
   venue:"", city:"", flyer:"", description:"",
-  lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:""
+  lineup:[], isPast:false, setTimes:[], ticketLinks:[], recordedSets:"", recordedSetsLinks:[]
 };
 
 export default function Events() {
@@ -77,17 +70,18 @@ export default function Events() {
   if (!hasView) return <Navigate to="/admin/dashboard" replace />;
   const canEdit = currentUser?.isSuperAdmin || can("editor_eventos");
 
-  const [events, setEvents]         = useState<Event[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [modal, setModal]           = useState<null|"create"|"edit"|"delete">(null);
-  const [selected, setSelected]     = useState<Event|null>(null);
-  const [form, setForm]             = useState<Event>({...EMPTY});
-  const [lineupText, setLineupText] = useState("");
+  const [events, setEvents]             = useState<Event[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [modal, setModal]               = useState<null|"create"|"edit"|"delete">(null);
+  const [selected, setSelected]         = useState<Event|null>(null);
+  const [form, setForm]                 = useState<Event>({...EMPTY});
+  const [lineupText, setLineupText]     = useState("");
   const [setTimesText, setSetTimesText] = useState("");
-  const [tickets, setTickets]       = useState<{name:string;url:string}[]>([{name:"",url:""}]);
-  const [converting, setConv]       = useState(false);
-  const [converted, setDone]        = useState(false);
-  const [errors, setErrors]         = useState<string[]>([]);
+  const [tickets, setTickets]           = useState<{name:string;url:string}[]>([{name:"",url:""}]);
+  const [recSets, setRecSets]           = useState<{name:string;url:string}[]>([{name:"",url:""}]);
+  const [converting, setConv]           = useState(false);
+  const [converted, setDone]            = useState(false);
+  const [errors, setErrors]             = useState<string[]>([]);
 
   const inp: React.CSSProperties = { width:"100%", backgroundColor:t.bgInput, border:`1px solid ${t.border}`, color:t.text, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box" };
   const lbl: React.CSSProperties = { fontSize:9, letterSpacing:"0.18em", color:t.textMuted, display:"block", marginBottom:5, textTransform:"uppercase" };
@@ -116,6 +110,7 @@ export default function Events() {
           setTimes: row.set_times ?? [],
           ticketLinks: row.ticket_links ?? [],
           recordedSets: row.recorded_sets ?? "",
+          recordedSetsLinks: Array.isArray(row.recorded_sets_links) ? row.recorded_sets_links : [],
           isPast: row.is_past ?? false,
         })));
       }
@@ -124,14 +119,24 @@ export default function Events() {
     load();
   }, []);
 
-  function openCreate() { setForm({...EMPTY}); setErrors([]); setLineupText(""); setSetTimesText(""); setTickets([{name:"",url:""}]); setDone(false); setModal("create"); }
+  function openCreate() {
+    setForm({...EMPTY}); setErrors([]);
+    setLineupText(""); setSetTimesText("");
+    setTickets([{name:"",url:""}]);
+    setRecSets([{name:"",url:""}]);
+    setDone(false); setModal("create");
+  }
+
   function openEdit(e: Event) {
     setSelected(e); setForm({...e});
     setLineupText(e.lineup.join("\n"));
     setSetTimesText((e.setTimes??[]).map(s=>`${s.artist}|${s.time}`).join("\n"));
     setTickets((e.ticketLinks??[]).length > 0 ? e.ticketLinks! : [{name:"",url:""}]);
+    const rsl = (e as any).recordedSetsLinks;
+    setRecSets(Array.isArray(rsl) && rsl.length > 0 ? rsl : [{name:"",url:""}]);
     setErrors([]); setDone(false); setModal("edit");
   }
+
   function openDelete(e: Event) { setSelected(e); setModal("delete"); }
 
   async function handleFlyer(e: React.ChangeEvent<HTMLInputElement>) {
@@ -153,6 +158,11 @@ export default function Events() {
     if (!form.endDate) errs.push("La fecha de término es obligatoria.");
     if (!form.endTime) errs.push("La hora de término es obligatoria.");
     if (form.startDate && form.startDate < "2024-09-01") errs.push("No se permiten eventos anteriores a septiembre de 2024.");
+    if (form.startDate && form.startTime && form.endDate && form.endTime) {
+      const start = new Date(`${form.startDate}T${form.startTime}`);
+      const end = new Date(`${form.endDate}T${form.endTime}`);
+      if (start >= end) errs.push("La fecha/hora de inicio debe ser anterior a la de término.");
+    }
     if (errs.length > 0) { setErrors(errs); return; }
     setErrors([]);
 
@@ -161,7 +171,8 @@ export default function Events() {
     const lineup = parseLines(lineupText);
     const setTimes = parseSetTimes(setTimesText);
     const ticketLinks = tickets.filter(t => t.name || t.url);
-    const endDateTime = new Date(`${form.endDate}T${form.endTime||"23:59"}`);
+    const recordedSetsLinks = recSets.filter(r => r.name || r.url);
+    const endDateTime = new Date(`${form.endDate}T${form.endTime}`);
     const isPast = endDateTime < new Date();
 
     const row = {
@@ -181,19 +192,21 @@ export default function Events() {
       lineup,
       set_times: setTimes,
       ticket_links: ticketLinks,
-      recorded_sets: form.recordedSets,
+      recorded_sets: recordedSetsLinks[0]?.url ?? "",
+      recorded_sets_links: recordedSetsLinks,
       is_past: isPast,
     };
 
     if (modal === "create") {
-      const { error } = await supabase.from("events").insert(row);
+      const { data, error } = await supabase.from("events").insert(row).select().single();
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setEvents(prev => [{...form, id:row.id, slug, flyer, lineup, setTimes, ticketLinks, isPast, date:form.startDate}, ...prev]);
+      const saved = data ?? row;
+      setEvents(prev => [{...form, id:saved.id, slug, flyer, lineup, setTimes, ticketLinks, isPast, date:form.startDate, recordedSetsLinks}, ...prev]);
       logAction(`Creó evento "${form.name}"`, "eventos");
     } else if (modal === "edit" && selected) {
       const { error } = await supabase.from("events").update(row).eq("id", selected.id);
       if (error) { alert("Error al guardar: " + error.message); return; }
-      setEvents(prev => prev.map(e => e.id === selected.id ? {...form, id:selected.id, slug, flyer, lineup, setTimes, ticketLinks, isPast, date:form.startDate} : e));
+      setEvents(prev => prev.map(e => e.id === selected.id ? {...form, id:selected.id, slug, flyer, lineup, setTimes, ticketLinks, isPast, date:form.startDate, recordedSetsLinks} : e));
       logAction(`Editó evento "${form.name}"`, "eventos");
     }
     setModal(null);
@@ -209,7 +222,7 @@ export default function Events() {
   }
 
   const isEventEnded = (event: Event) => {
-    if (event.endDate && event.endTime) return new Date(`${event.endDate}T${event.endTime}`) < new Date();
+    if ((event as any).endDate && (event as any).endTime) return new Date(`${(event as any).endDate}T${(event as any).endTime}`) < new Date();
     return event.isPast;
   };
 
@@ -262,6 +275,8 @@ export default function Events() {
               <div><label style={lbl}>Descripción</label><input style={inp} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div>
               <div><label style={lbl}>Lineup (un artista por línea)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={lineupText} onChange={e=>setLineupText(e.target.value)} placeholder={"PAKARD\nBONDARÜK & SMT"}/></div>
               <div><label style={lbl}>Set Times (Artista|HH:MM - HH:MM)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7}} value={setTimesText} onChange={e=>setSetTimesText(e.target.value)} placeholder={"PAKARD|00:00 - 02:00"}/></div>
+
+              {/* Ticket Links */}
               <div>
                 <label style={lbl}>Links de tickets</label>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 28px",gap:"6px",marginBottom:6}}>
@@ -278,7 +293,25 @@ export default function Events() {
                 ))}
                 <button type="button" onClick={()=>setTickets(prev=>[...prev,{name:"",url:""}])} style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:t.textMuted,background:"none",border:`1px solid ${t.border}`,padding:"5px 12px",cursor:"pointer",marginTop:2}}>+ Agregar link</button>
               </div>
-              <div><label style={lbl}>Recorded Sets (URL Soundcloud)</label><input style={inp} value={form.recordedSets??""} onChange={e=>setForm(f=>({...f,recordedSets:e.target.value}))} placeholder="https://soundcloud.com/..."/></div>
+
+              {/* Recorded Sets Links */}
+              <div>
+                <label style={lbl}>Recorded Sets</label>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 28px",gap:"6px",marginBottom:6}}>
+                  <span style={{fontSize:9,letterSpacing:"0.12em",color:t.textMuted,textTransform:"uppercase"}}>Nombre</span>
+                  <span style={{fontSize:9,letterSpacing:"0.12em",color:t.textMuted,textTransform:"uppercase"}}>URL</span>
+                  <span/>
+                </div>
+                {recSets.map((rs, i) => (
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 28px",gap:"6px",marginBottom:6}}>
+                    <input style={inp} placeholder="Ej: Soundcloud" value={rs.name} onChange={e=>setRecSets(prev=>prev.map((r,idx)=>idx===i?{...r,name:e.target.value}:r))}/>
+                    <input style={inp} placeholder="https://soundcloud.com/..." value={rs.url} onChange={e=>setRecSets(prev=>prev.map((r,idx)=>idx===i?{...r,url:e.target.value}:r))}/>
+                    <button type="button" onClick={()=>setRecSets(prev=>prev.filter((_,idx)=>idx!==i))} style={{background:"none",border:`1px solid ${t.border}`,color:t.textMuted,cursor:"pointer",fontSize:13}}>✕</button>
+                  </div>
+                ))}
+                <button type="button" onClick={()=>setRecSets(prev=>[...prev,{name:"",url:""}])} style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:t.textMuted,background:"none",border:`1px solid ${t.border}`,padding:"5px 12px",cursor:"pointer",marginTop:2}}>+ Agregar set</button>
+              </div>
+
               <div style={{borderTop:`1px solid ${t.border}`,paddingTop:"1.25rem"}}>
                 <label style={lbl}>Flyer del evento</label>
                 <input type="file" accept="image/*" onChange={handleFlyer} style={{fontSize:12,color:t.textMuted,cursor:"pointer"}}/>
@@ -286,6 +319,7 @@ export default function Events() {
                 {converted && !converting && <div style={{fontSize:11,color:t.success,marginTop:8}}>✓ Flyer optimizado para web (WebP)</div>}
                 {form.flyer && !converting && <img src={form.flyer} alt="Flyer" style={{marginTop:10,height:100,border:`1px solid ${t.border}`}}/>}
               </div>
+
               {errors.length > 0 && (
                 <div style={{backgroundColor:t.dangerBg,border:`1px solid ${t.dangerBorder}`,padding:"10px 14px"}}>
                   {errors.map((err,i) => <div key={i} style={{fontSize:11,color:t.danger,lineHeight:1.8}}>{err}</div>)}
@@ -327,8 +361,8 @@ function EventRow({event,canEdit,onEdit,onDelete,t}: {event:Event; canEdit:boole
         <div>
           <div style={{fontSize:13,fontWeight:700,color:t.text,marginBottom:2}}>{event.name}</div>
           <div style={{fontSize:11,color:t.textMuted}}>
-            {event.startDate ? event.startDate : event.date}
-            {(event.startTime||event.time) && ` · ${event.startTime||event.time}`}
+            {(event as any).startDate || event.date}
+            {((event as any).startTime||event.time) && ` · ${(event as any).startTime||event.time}`}
             {event.venue&&` · ${event.venue}`}{event.city&&`, ${event.city}`}
           </div>
           <div style={{fontSize:10,color:t.textFaint,marginTop:2}}>{event.lineup.join(" / ")}</div>

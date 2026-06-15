@@ -103,8 +103,8 @@ const ArtistDetail = () => {
     }
 
     toast({
-      title: "Booking enviado",
-      description: `Gracias por tu interés en reservar a ${artist.name}. Nos contactaremos pronto.`,
+      title: "Booking request sent",
+      description: `Thank you for your interest in booking ${artist.name}. We will be in touch soon.`,
     });
 
     setFormData({ name:"", organizationName:"", promoterPage:"", email:"", phone:"", city:"", message:"" });
