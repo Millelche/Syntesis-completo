@@ -1,11 +1,13 @@
 /**
- * AdminContext.tsx — v4
+ * AdminContext.tsx — v5
  * ─────────────────────────────────────────────────────────────────────────────
+ * Cambios v5:
+ *  - Bookings migrados de localStorage a Supabase (tabla bookings)
  * Cambios v4:
  *  - Usuarios migrados de localStorage a Supabase (tabla admin_users)
  *  - Login, createUser, updateUser, deleteUser ahora consultan Supabase
  *  - La sesión activa sigue en localStorage (solo el usuario logueado)
- *  - Bookings, activityLog y theme siguen en localStorage
+ *  - activityLog y theme siguen en localStorage
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -94,6 +96,22 @@ function djb2Hash(str: string): string {
   return hash.toString(36);
 }
 
+function rowToBooking(row: any): BookingRequest {
+  return {
+    id: row.id,
+    artist: row.artist ?? "",
+    name: row.name ?? "",
+    organizationName: row.organization_name ?? "",
+    promoterPage: row.promoter_page ?? "",
+    email: row.email ?? "",
+    phone: row.phone ?? "",
+    city: row.city ?? "",
+    message: row.message ?? "",
+    receivedAt: row.received_at ?? row.created_at ?? new Date().toISOString(),
+    status: (row.status ?? "nuevo") as BookingRequest["status"],
+  };
+}
+
 function rowToUser(row: any): AdminUser {
   return {
     id: row.id,
@@ -114,6 +132,7 @@ interface AdminContextType {
   activityLog: ActivityLog[];
   theme: "dark" | "light";
   usersLoading: boolean;
+  bookingsLoading: boolean;
 
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -123,9 +142,9 @@ interface AdminContextType {
   updateUser: (id: string, data: { username?: string; password?: string; permissions?: Permission[] }) => Promise<boolean>;
   deleteUser: (id: string) => Promise<boolean>;
 
-  addBookingRequest: (data: Omit<BookingRequest, "id" | "receivedAt" | "status">) => void;
-  updateBookingStatus: (id: string, status: BookingRequest["status"]) => void;
-  deleteBooking: (id: string) => void;
+  addBookingRequest: (data: Omit<BookingRequest, "id" | "receivedAt" | "status">) => Promise<void>;
+  updateBookingStatus: (id: string, status: BookingRequest["status"]) => Promise<void>;
+  deleteBooking: (id: string) => Promise<void>;
 
   logAction: (action: string, section: string) => void;
 
@@ -147,10 +166,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [users, setUsers]           = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
 
-  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>(() => {
-    const s = localStorage.getItem(STORAGE_KEYS.bookings);
-    return s ? JSON.parse(s) : [];
-  });
+  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
 
   const [activityLog, setActivityLog] = useState<ActivityLog[]>(() => {
     const s = localStorage.getItem(STORAGE_KEYS.activityLog);
@@ -174,7 +191,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     loadUsers();
   }, []);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.bookings, JSON.stringify(bookingRequests)); }, [bookingRequests]);
+  useEffect(() => {
+    async function loadBookings() {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (!error && data) {
+        setBookingRequests(data.map(rowToBooking));
+      }
+      setBookingsLoading(false);
+    }
+    loadBookings();
+  }, []);
+
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.activityLog, JSON.stringify(activityLog)); }, [activityLog]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.theme, theme); }, [theme]);
 
@@ -300,22 +330,38 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }
 
   // ── Bookings ──────────────────────────────────────────────────────────────
-  function addBookingRequest(data: Omit<BookingRequest, "id" | "receivedAt" | "status">) {
-    const req: BookingRequest = {
-      ...data,
-      id: Date.now().toString(),
-      receivedAt: new Date().toISOString(),
+  async function addBookingRequest(data: Omit<BookingRequest, "id" | "receivedAt" | "status">) {
+    const id = Date.now().toString();
+    const receivedAt = new Date().toISOString();
+    const row = {
+      id,
+      artist: data.artist,
+      name: data.name,
+      organization_name: data.organizationName,
+      promoter_page: data.promoterPage,
+      email: data.email,
+      phone: data.phone,
+      city: data.city,
+      message: data.message,
       status: "nuevo",
+      created_at: receivedAt,
+      received_at: receivedAt,
     };
-    setBookingRequests(prev => [req, ...prev]);
+    const { error } = await supabase.from("bookings").insert(row);
+    if (error) { console.error("Error al guardar booking:", error.message); return; }
+    setBookingRequests(prev => [{ ...data, id, receivedAt, status: "nuevo" }, ...prev]);
   }
 
-  function updateBookingStatus(id: string, status: BookingRequest["status"]) {
+  async function updateBookingStatus(id: string, status: BookingRequest["status"]) {
+    const { error } = await supabase.from("bookings").update({ status }).eq("id", id);
+    if (error) { console.error("Error al actualizar booking:", error.message); return; }
     setBookingRequests(prev => prev.map(b => b.id === id ? { ...b, status } : b));
     logAction(`Cambió estado de booking ${id} a "${status}"`, "bookings");
   }
 
-  function deleteBooking(id: string) {
+  async function deleteBooking(id: string) {
+    const { error } = await supabase.from("bookings").delete().eq("id", id);
+    if (error) { console.error("Error al eliminar booking:", error.message); return; }
     setBookingRequests(prev => prev.filter(b => b.id !== id));
     logAction(`Eliminó booking ${id}`, "bookings");
   }
@@ -338,7 +384,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      currentUser, users, bookingRequests, activityLog, theme, usersLoading,
+      currentUser, users, bookingRequests, activityLog, theme, usersLoading, bookingsLoading,
       login, logout, toggleTheme,
       createUser, updateUser, deleteUser,
       addBookingRequest, updateBookingStatus, deleteBooking,

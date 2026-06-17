@@ -70,7 +70,7 @@ const ArtistDetail = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    addBookingRequest({
+    await addBookingRequest({
       artist: artist.name,
       name: formData.name,
       organizationName: formData.organizationName,
