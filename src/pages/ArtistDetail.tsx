@@ -202,16 +202,16 @@ const ArtistDetail = () => {
                 </p>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input placeholder="Your Name *" value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})} required maxLength={50} className="bg-background border-border/50"/>
+                    <Input placeholder="Your Name *" value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})} required maxLength={50} onInvalid={e=>(e.target as HTMLInputElement).setCustomValidity("Please fill out this field.")} onInput={e=>(e.target as HTMLInputElement).setCustomValidity("")} className="bg-background border-border/50"/>
                     <Input placeholder="Organization Name" value={formData.organizationName} onChange={e=>setFormData({...formData,organizationName:e.target.value})} maxLength={50} className="bg-background border-border/50"/>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input placeholder="Organization Page URL" value={formData.promoterPage} onChange={e=>setFormData({...formData,promoterPage:e.target.value})} maxLength={50} className="bg-background border-border/50"/>
-                    <Input type="email" placeholder="Email *" value={formData.email} onChange={e=>setFormData({...formData,email:e.target.value})} required maxLength={50} className="bg-background border-border/50"/>
+                    <Input type="email" placeholder="Email *" value={formData.email} onChange={e=>setFormData({...formData,email:e.target.value})} required maxLength={50} onInvalid={e=>{const el=e.target as HTMLInputElement; el.setCustomValidity(el.validity.valueMissing ? "Please fill out this field." : "Please enter a valid email address.");}} onInput={e=>(e.target as HTMLInputElement).setCustomValidity("")} className="bg-background border-border/50"/>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input type="tel" placeholder="Phone Number" value={formData.phone} onChange={e=>setFormData({...formData,phone:e.target.value})} maxLength={50} className="bg-background border-border/50"/>
-                    <Input placeholder="City / Country *" value={formData.city} onChange={e=>setFormData({...formData,city:e.target.value})} required maxLength={50} className="bg-background border-border/50"/>
+                    <Input placeholder="City / Country *" value={formData.city} onChange={e=>setFormData({...formData,city:e.target.value})} required maxLength={50} onInvalid={e=>(e.target as HTMLInputElement).setCustomValidity("Please fill out this field.")} onInput={e=>(e.target as HTMLInputElement).setCustomValidity("")} className="bg-background border-border/50"/>
                   </div>
                   <Textarea placeholder="Event details, date, venue..." value={formData.message} onChange={e=>setFormData({...formData,message:e.target.value})} rows={4} maxLength={1000} className="bg-background border-border/50 resize-none"/>
                   <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 uppercase tracking-widest py-6">BOOK</Button>

@@ -15,10 +15,12 @@ function toAbsoluteUrl(url: string): string {
 
 function isEventEnded(event: any): boolean {
   if (event.endDate && event.endTime) {
-    // Comparamos la hora guardada (hora Argentina) con la hora actual en Argentina
-    const end = new Date(`${event.endDate}T${event.endTime}:00`);
-    const nowArgentina = new Date(new Date().getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
-    return end < nowArgentina;
+    // event.endDate/endTime están guardados como hora Argentina (UTC-3).
+    // Forzamos interpretación UTC con "Z" y luego restamos el offset para
+    // obtener el instante UTC real que representa esa hora Argentina.
+    const naiveUTC = new Date(`${event.endDate}T${event.endTime}:00Z`);
+    const endInstant = new Date(naiveUTC.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
+    return endInstant < new Date();
   }
   return event.isPast ?? false;
 }

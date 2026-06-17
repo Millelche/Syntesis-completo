@@ -65,9 +65,9 @@ const EventDetail = () => {
   const isEventEnded = () => {
     if (!event) return false;
     if (event.endDate && event.endTime) {
-      const end = new Date(`${event.endDate}T${event.endTime}:00`);
-      const nowArgentina = new Date(new Date().getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
-      return end < nowArgentina;
+      const naiveUTC = new Date(`${event.endDate}T${event.endTime}:00Z`);
+      const endInstant = new Date(naiveUTC.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
+      return endInstant < new Date();
     }
     return event.isPast ?? false;
   };

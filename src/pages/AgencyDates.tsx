@@ -12,11 +12,12 @@ const TZ_OFFSET_HOURS = -3;
 
 function isDatePast(endDate?: string, endTime?: string): boolean {
   if (!endDate || !endTime) return false;
-  // La fecha/hora guardada está en hora Argentina (UTC-3)
-  // La convertimos a UTC para comparar correctamente
-  const end = new Date(`${endDate}T${endTime}:00`);
-  const endUTC = new Date(end.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
-  return endUTC < new Date();
+  // endDate/endTime están guardados como hora Argentina (UTC-3).
+  // Forzamos interpretación UTC con "Z" y restamos el offset para obtener
+  // el instante UTC real que representa esa hora Argentina.
+  const naiveUTC = new Date(`${endDate}T${endTime}:00Z`);
+  const endInstant = new Date(naiveUTC.getTime() - TZ_OFFSET_HOURS * 60 * 60 * 1000);
+  return endInstant < new Date();
 }
 
 const formatDate = (dateStr: string) => {
