@@ -1,26 +1,16 @@
 /**
- * AdminContext.tsx — v3
+ * AdminContext.tsx — v4
  * ─────────────────────────────────────────────────────────────────────────────
- * Contexto global del panel de administración de Syntesis.
- *
- * Cambios v3:
- *  - Hash de contraseñas migrado de djb2 a SHA-256 (Web Crypto API)
- *  - Login y CRUD de usuarios ahora son async para soportar el hash
- *  - Migración automática de hashes viejos al primer login
- *
- * Permisos disponibles:
- *  - "editor_artistas"   → CRUD artistas
- *  - "editor_eventos"    → CRUD eventos
- *  - "editor_fechas"     → CRUD fechas
- *  - "admin_bookings"    → Ver, cambiar estado y eliminar bookings
+ * Cambios v4:
+ *  - Usuarios migrados de localStorage a Supabase (tabla admin_users)
+ *  - Login, createUser, updateUser, deleteUser ahora consultan Supabase
+ *  - La sesión activa sigue en localStorage (solo el usuario logueado)
+ *  - Bookings, activityLog y theme siguen en localStorage
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TIPOS
-// ─────────────────────────────────────────────────────────────────────────────
+import { supabase } from "@/lib/supabase";
 
 export type Permission =
   | "editor_artistas"
@@ -46,7 +36,7 @@ export interface AdminUser {
   id: string;
   username: string;
   passwordHash: string;
-  hashVersion: "djb2" | "sha256"; // para migración automática
+  hashVersion: "djb2" | "sha256";
   isSuperAdmin: boolean;
   permissions: Permission[];
   createdAt: string;
@@ -75,10 +65,6 @@ export interface ActivityLog {
   timestamp: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CLAVES DE LOCALSTORAGE
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const STORAGE_KEYS = {
   users:       "syntesis_admin_users",
   session:     "syntesis_admin_session",
@@ -90,11 +76,6 @@ export const STORAGE_KEYS = {
   theme:       "syntesis_admin_theme",
 } as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS DE HASH
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** SHA-256 usando Web Crypto API nativa del navegador */
 async function sha256(str: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(str);
@@ -103,7 +84,6 @@ async function sha256(str: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Hash djb2 legacy — solo para migración de usuarios existentes */
 function djb2Hash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -114,43 +94,18 @@ function djb2Hash(str: string): string {
   return hash.toString(36);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUPERADMIN POR DEFECTO
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Hash SHA-256 de "SYnt73**" precalculado para inicialización síncrona.
- * Si cambiás la contraseña del superadmin, se actualiza automáticamente.
- */
-const SUPER_ADMIN_SHA256 = "9867aca35243ec1fd8770f1c5efd979384b5d88546282a103c7f39d327e91dfb";
-
-function initUsers(): AdminUser[] {
-  const stored = localStorage.getItem(STORAGE_KEYS.users);
-  if (stored) {
-    const users: AdminUser[] = JSON.parse(stored);
-    return users.map(u => ({
-      ...u,
-      isSuperAdmin: u.isSuperAdmin ?? false,
-      permissions: u.permissions ?? [],
-      hashVersion: u.hashVersion ?? "djb2", // usuarios viejos = djb2
-    }));
-  }
-  const users: AdminUser[] = [{
-    id: "1",
-    username: "superadmin",
-    passwordHash: SUPER_ADMIN_SHA256,
-    hashVersion: "sha256",
-    isSuperAdmin: true,
-    permissions: [],
-    createdAt: new Date().toISOString(),
-  }];
-  localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
-  return users;
+function rowToUser(row: any): AdminUser {
+  return {
+    id: row.id,
+    username: row.username,
+    passwordHash: row.password_hash,
+    hashVersion: (row.hash_version ?? "sha256") as "djb2" | "sha256",
+    isSuperAdmin: row.is_super_admin ?? false,
+    permissions: row.permissions ?? [],
+    createdAt: row.created_at ?? new Date().toISOString(),
+    lastAccess: row.last_access ?? undefined,
+  };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TIPO DEL CONTEXTO
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface AdminContextType {
   currentUser: AdminUser | null;
@@ -158,6 +113,7 @@ interface AdminContextType {
   bookingRequests: BookingRequest[];
   activityLog: ActivityLog[];
   theme: "dark" | "light";
+  usersLoading: boolean;
 
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -165,7 +121,7 @@ interface AdminContextType {
 
   createUser: (data: { username: string; password: string; permissions: Permission[] }) => Promise<boolean>;
   updateUser: (id: string, data: { username?: string; password?: string; permissions?: Permission[] }) => Promise<boolean>;
-  deleteUser: (id: string) => boolean;
+  deleteUser: (id: string) => Promise<boolean>;
 
   addBookingRequest: (data: Omit<BookingRequest, "id" | "receivedAt" | "status">) => void;
   updateBookingStatus: (id: string, status: BookingRequest["status"]) => void;
@@ -179,10 +135,6 @@ interface AdminContextType {
   can: (permission: Permission) => boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROVIDER
-// ─────────────────────────────────────────────────────────────────────────────
-
 const AdminContext = createContext<AdminContextType | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
@@ -192,7 +144,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return s ? JSON.parse(s) : null;
   });
 
-  const [users, setUsers] = useState<AdminUser[]>(initUsers);
+  const [users, setUsers]           = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>(() => {
     const s = localStorage.getItem(STORAGE_KEYS.bookings);
@@ -209,12 +162,21 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return (stored as "dark" | "light") ?? "dark";
   });
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users)); }, [users]);
+  // ── Carga usuarios desde Supabase ─────────────────────────────────────────
+  useEffect(() => {
+    async function loadUsers() {
+      const { data, error } = await supabase.from("admin_users").select("*");
+      if (!error && data && data.length > 0) {
+        setUsers(data.map(rowToUser));
+      }
+      setUsersLoading(false);
+    }
+    loadUsers();
+  }, []);
+
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.bookings, JSON.stringify(bookingRequests)); }, [bookingRequests]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.activityLog, JSON.stringify(activityLog)); }, [activityLog]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.theme, theme); }, [theme]);
-
-  // ── Log ───────────────────────────────────────────────────────────────────
 
   function logAction(action: string, section: string) {
     if (!currentUser) return;
@@ -228,39 +190,43 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setActivityLog(prev => [entry, ...prev].slice(0, 200));
   }
 
-  // ── Theme ─────────────────────────────────────────────────────────────────
-
   function toggleTheme() {
     setTheme(prev => prev === "dark" ? "light" : "dark");
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
-
   async function login(username: string, password: string): Promise<boolean> {
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-    if (!user) return false;
+    const { data, error } = await supabase
+      .from("admin_users")
+      .select("*")
+      .ilike("username", username)
+      .single();
 
+    if (error || !data) return false;
+
+    const user = rowToUser(data);
     let matches = false;
 
     if (user.hashVersion === "sha256") {
       const hash = await sha256(password);
       matches = hash === user.passwordHash;
     } else {
-      // Usuario con hash legacy djb2 — verificar y migrar a sha256
       matches = djb2Hash(password) === user.passwordHash;
       if (matches) {
         const newHash = await sha256(password);
-        setUsers(prev => prev.map(u =>
-          u.id === user.id
-            ? { ...u, passwordHash: newHash, hashVersion: "sha256" }
-            : u
-        ));
+        await supabase.from("admin_users").update({
+          password_hash: newHash,
+          hash_version: "sha256",
+        }).eq("id", user.id);
+        user.passwordHash = newHash;
+        user.hashVersion = "sha256";
       }
     }
 
     if (!matches) return false;
 
-    const updated = { ...user, lastAccess: new Date().toISOString(), hashVersion: "sha256" as const };
+    const updated = { ...user, lastAccess: new Date().toISOString() };
+    await supabase.from("admin_users").update({ last_access: updated.lastAccess }).eq("id", user.id);
     setCurrentUser(updated);
     localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(updated));
     setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
@@ -273,27 +239,41 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }
 
   // ── CRUD usuarios ─────────────────────────────────────────────────────────
-
   async function createUser(data: { username: string; password: string; permissions: Permission[] }): Promise<boolean> {
-    if (users.length >= 5) return false;
-    if (users.find(u => u.username.toLowerCase() === data.username.toLowerCase())) return false;
+    if (users.length >= 10) return false;
+    const exists = users.find(u => u.username.toLowerCase() === data.username.toLowerCase());
+    if (exists) return false;
+
     const hash = await sha256(data.password);
-    const newUser: AdminUser = {
+    const newRow = {
       id: Date.now().toString(),
       username: data.username,
-      passwordHash: hash,
-      hashVersion: "sha256",
-      isSuperAdmin: false,
+      password_hash: hash,
+      hash_version: "sha256",
+      is_super_admin: false,
       permissions: data.permissions,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
-    setUsers(prev => [...prev, newUser]);
+
+    const { error } = await supabase.from("admin_users").insert(newRow);
+    if (error) { console.error("Error creando usuario:", error.message); return false; }
+
+    setUsers(prev => [...prev, rowToUser(newRow)]);
     logAction(`Creó usuario "${data.username}"`, "usuarios");
     return true;
   }
 
   async function updateUser(id: string, data: { username?: string; password?: string; permissions?: Permission[] }): Promise<boolean> {
     const hash = data.password ? await sha256(data.password) : undefined;
+    const updates: any = {};
+    if (data.username) updates.username = data.username;
+    if (hash) { updates.password_hash = hash; updates.hash_version = "sha256"; }
+    const user = users.find(u => u.id === id);
+    if (data.permissions !== undefined && !user?.isSuperAdmin) updates.permissions = data.permissions;
+
+    const { error } = await supabase.from("admin_users").update(updates).eq("id", id);
+    if (error) { console.error("Error actualizando usuario:", error.message); return false; }
+
     setUsers(prev => prev.map(u => {
       if (u.id !== id) return u;
       const updated = { ...u };
@@ -306,17 +286,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
-  function deleteUser(id: string): boolean {
+  async function deleteUser(id: string): Promise<boolean> {
     if (currentUser?.id === id) return false;
     const user = users.find(u => u.id === id);
     if (user?.isSuperAdmin) return false;
+
+    const { error } = await supabase.from("admin_users").delete().eq("id", id);
+    if (error) { console.error("Error eliminando usuario:", error.message); return false; }
+
     setUsers(prev => prev.filter(u => u.id !== id));
     logAction(`Eliminó usuario "${user?.username}"`, "usuarios");
     return true;
   }
 
   // ── Bookings ──────────────────────────────────────────────────────────────
-
   function addBookingRequest(data: Omit<BookingRequest, "id" | "receivedAt" | "status">) {
     const req: BookingRequest = {
       ...data,
@@ -338,7 +321,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }
 
   // ── Storage genérico ──────────────────────────────────────────────────────
-
   function getStorage<T>(key: keyof typeof STORAGE_KEYS): T | null {
     const s = localStorage.getItem(STORAGE_KEYS[key]);
     return s ? JSON.parse(s) : null;
@@ -348,8 +330,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(data));
   }
 
-  // ── Permisos ──────────────────────────────────────────────────────────────
-
   function can(permission: Permission): boolean {
     if (!currentUser) return false;
     if (currentUser.isSuperAdmin) return true;
@@ -358,7 +338,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      currentUser, users, bookingRequests, activityLog, theme,
+      currentUser, users, bookingRequests, activityLog, theme, usersLoading,
       login, logout, toggleTheme,
       createUser, updateUser, deleteUser,
       addBookingRequest, updateBookingStatus, deleteBooking,
