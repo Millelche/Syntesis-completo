@@ -66,29 +66,28 @@ export default function Users() {
     }));
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.username || !form.password) { setFeedback("Completá usuario y contraseña"); return; }
-    const ok = createUser({ username: form.username, password: form.password, permissions: form.permissions });
-    if (!ok) { setFeedback("El usuario ya existe o se alcanzó el límite de 5 usuarios"); return; }
+    const ok = await createUser({ username: form.username, password: form.password, permissions: form.permissions });
+    if (!ok) { setFeedback("El usuario ya existe o se alcanzó el límite de 10 usuarios"); return; }
     setModal(null);
   }
 
-  function handleEdit() {
+  async function handleEdit() {
     if (!selected) return;
     if (!form.username) { setFeedback("El nombre de usuario no puede estar vacío"); return; }
-    updateUser(selected.id, {
+    const ok = await updateUser(selected.id, {
       username: form.username,
-      // Solo actualiza contraseña si se ingresó una nueva
       ...(form.password ? { password: form.password } : {}),
-      // Solo actualiza permisos si no es superadmin
       ...(!selected.isSuperAdmin ? { permissions: form.permissions } : {}),
     });
+    if (!ok) { setFeedback("Error al actualizar el usuario"); return; }
     setModal(null);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!selected) return;
-    const ok = deleteUser(selected.id);
+    const ok = await deleteUser(selected.id);
     if (!ok) { setFeedback("No se puede eliminar este usuario"); return; }
     setModal(null);
   }
@@ -143,9 +142,9 @@ export default function Users() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem" }}>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: "0.04em", color: t.text, marginBottom: 4 }}>Usuarios</h1>
-            <p style={{ fontSize: 11, color: t.textMuted }}>{users.length}/5 usuarios creados</p>
+            <p style={{ fontSize: 11, color: t.textMuted }}>{users.length}/10 usuarios creados</p>
           </div>
-          {users.length < 5 && (
+          {users.length < 10 && (
             <button onClick={openCreate} style={{ backgroundColor: t.accent, color: t.accentText, padding: "9px 18px", fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", border: "none", cursor: "pointer" }}>
               + Nuevo usuario
             </button>
